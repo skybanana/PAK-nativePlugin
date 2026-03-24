@@ -39,3 +39,6 @@
 
 # debug information files
 *.dwo
+
+# vspkg 환경분리
+vcpkg_installed/
