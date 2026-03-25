@@ -18,3 +18,14 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
+find_package(RtAudio CONFIG REQUIRED)
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (duplex "src/duplex.cpp")
+
+target_link_libraries(duplex
+  PRIVATE
+    RtAudio::rtaudio
+)

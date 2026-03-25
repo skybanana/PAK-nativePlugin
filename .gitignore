@@ -42,3 +42,10 @@
 
 # vspkg 환경분리
 vcpkg_installed/
+
+.vscode
+
+# CMake build outputs
+out/
+build/
+cmake-build-*/
