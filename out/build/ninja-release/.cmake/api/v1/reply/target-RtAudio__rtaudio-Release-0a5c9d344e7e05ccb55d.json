@@ -1,0 +1,126 @@
+{
+	"abstract" : true,
+	"artifacts" : 
+	[
+		{
+			"path" : "D:/Project/PAK/PAK-nativePlugin/vcpkg_installed/x64-windows/bin/rtaudio.dll"
+		},
+		{
+			"path" : "D:/Project/PAK/PAK-nativePlugin/vcpkg_installed/x64-windows/lib/rtaudio.lib"
+		}
+	],
+	"backtrace" : 7,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"_add_library",
+			"add_library",
+			"include",
+			"_find_package",
+			"find_package",
+			"set_target_properties"
+		],
+		"files" : 
+		[
+			"D:/devTools/vcpkg/scripts/buildsystems/vcpkg.cmake",
+			"vcpkg_installed/x64-windows/share/rtaudio/RtAudioTargets.cmake",
+			"vcpkg_installed/x64-windows/share/rtaudio/RtAudioConfig.cmake",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 3
+			},
+			{
+				"command" : 4,
+				"file" : 3,
+				"line" : 20,
+				"parent" : 0
+			},
+			{
+				"command" : 3,
+				"file" : 0,
+				"line" : 908,
+				"parent" : 1
+			},
+			{
+				"file" : 2,
+				"parent" : 2
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 26,
+				"parent" : 3
+			},
+			{
+				"file" : 1,
+				"parent" : 4
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 58,
+				"parent" : 5
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 653,
+				"parent" : 6
+			},
+			{
+				"command" : 5,
+				"file" : 1,
+				"line" : 60,
+				"parent" : 5
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	},
+	"id" : "RtAudio::rtaudio::@6890427a1f51a3e7e1df",
+	"imported" : true,
+	"interfaceLinkLibraries" : 
+	[
+		{
+			"backtrace" : 8,
+			"fragment" : "ksuser"
+		},
+		{
+			"backtrace" : 8,
+			"fragment" : "mfplat"
+		},
+		{
+			"backtrace" : 8,
+			"fragment" : "mfuuid"
+		},
+		{
+			"backtrace" : 8,
+			"fragment" : "wmcodecdspuuid"
+		},
+		{
+			"backtrace" : 8,
+			"fragment" : "winmm"
+		},
+		{
+			"backtrace" : 8,
+			"fragment" : "ole32"
+		}
+	],
+	"local" : true,
+	"name" : "RtAudio::rtaudio",
+	"nameOnDisk" : "rtaudio.dll",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sources" : [],
+	"type" : "SHARED_LIBRARY"
+}

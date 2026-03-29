@@ -1,0 +1,18 @@
+Detecting compiler hash for triplet x64-windows...
+Compiler found: C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.41.34120/bin/Hostx64/x64/cl.exe
+The following packages are already installed:
+    rtaudio:x64-windows@6.0.1#1
+  * vcpkg-cmake:x64-windows@2024-04-23
+  * vcpkg-cmake-config:x64-windows@2024-05-23
+rtaudio provides CMake targets:
+
+  # this is heuristically generated, and may not be correct
+  find_package(RtAudio CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE RtAudio::rtaudio)
+
+rtaudio provides pkg-config modules:
+
+  # RtAudio - a set of C++ classes that provide a common API for realtime audio input/output
+  rtaudio
+
+All requested installations completed successfully in: 691 us

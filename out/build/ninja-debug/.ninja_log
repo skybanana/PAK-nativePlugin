@@ -1,0 +1,10 @@
+# ninja log v7
+8	721	7964498858841625	CMakeFiles/duplexPlugin.dir/src/duplexPlugin.cpp.obj	9dff7e9fe19b4439
+2	735	7964498858776501	CMakeFiles/duplex.dir/src/duplex.cpp.obj	44c8362e962d35dd
+735	2022	7964498866122061	duplex.exe	c4f16a3ae497bf9c
+721	2024	7964498872204332	duplexPlugin.dll	22430a72bccc71f6
+721	2024	7964498872204332	duplexPlugin.lib	22430a72bccc71f6
+1	5823	7964746409630990	build.ninja	d81f4119e5911b48
+1	5823	7964746409601316	D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/cmake_install.cmake	d81f4119e5911b48
+7	683	7964575162428145	CMakeFiles/duplexPluginTest.dir/test/duplexPluginTest.cpp.obj	e3137be3f9b674e6
+684	1867	7964575169204406	duplexPluginTest.exe	68160ceec08e9dcd
