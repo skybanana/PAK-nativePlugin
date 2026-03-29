@@ -11,9 +11,9 @@ endif()
 
 project ("PAK-nativePlugin" LANGUAGES CXX)
 
-# CRT MTd로
+# CRT MDd로
 if (MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -28,4 +28,21 @@ add_executable (duplex "src/duplex.cpp")
 target_link_libraries(duplex
   PRIVATE
     RtAudio::rtaudio
+)
+
+# DLL
+add_library(duplexPlugin SHARED "src/duplexPlugin.cpp")
+
+target_link_libraries(duplexPlugin
+  PRIVATE
+    RtAudio::rtaudio
+)
+
+# 설계 의도: DLL을 동적 로드하는 최소 실행 테스트를 별도 타겟으로 제공한다.
+add_executable(duplexPluginTest "test/duplexPluginTest.cpp")
+add_dependencies(duplexPluginTest duplexPlugin)
+add_custom_command(TARGET duplexPluginTest POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          "$<TARGET_FILE:duplexPlugin>"
+          "$<TARGET_FILE_DIR:duplexPluginTest>"
 )

@@ -1,0 +1,87 @@
+{
+	"configurations" : 
+	[
+		{
+			"abstractTargets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "RtAudio::rtaudio::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-RtAudio__rtaudio-Release-0a5c9d344e7e05ccb55d.json",
+					"name" : "RtAudio::rtaudio",
+					"projectIndex" : 0
+				}
+			],
+			"directories" : 
+			[
+				{
+					"abstractTargetIndexes" : 
+					[
+						0
+					],
+					"build" : ".",
+					"jsonFile" : "directory-.-Release-f6f22219c74102c3da70.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.20"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"abstractTargetIndexes" : 
+					[
+						0
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "PAK-nativePlugin",
+					"targetIndexes" : 
+					[
+						0,
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "duplex::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-duplex-Release-f149dffe739e4db17cf9.json",
+					"name" : "duplex",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "duplexPlugin::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-duplexPlugin-Release-8159288fffc690d887a3.json",
+					"name" : "duplexPlugin",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "D:/Project/PAK/PAK-nativePlugin/out/build/ninja-release",
+		"source" : "D:/Project/PAK/PAK-nativePlugin"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 9
+	}
+}
