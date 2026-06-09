@@ -1,5 +1,0 @@
-D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/CMakeFiles/duplex.dir
-D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/CMakeFiles/duplexPlugin.dir
-D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/CMakeFiles/duplexPluginTest.dir
-D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/CMakeFiles/edit_cache.dir
-D:/Project/PAK/PAK-nativePlugin/out/build/ninja-debug/CMakeFiles/rebuild_cache.dir

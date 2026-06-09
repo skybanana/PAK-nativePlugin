@@ -1,6 +1,0 @@
-# ninja log v7
-8	927	7964556691220859	CMakeFiles/duplexPlugin.dir/src/duplexPlugin.cpp.obj	26c065731addc1ad
-1	958	7964556691160862	CMakeFiles/duplex.dir/src/duplex.cpp.obj	aa8e62611c215249
-958	1627	7964556700735264	duplex.exe	fc7714b539a731d8
-928	1632	7964556702400635	duplexPlugin.dll	970708b2db5f02d6
-928	1632	7964556702400635	duplexPlugin.lib	970708b2db5f02d6

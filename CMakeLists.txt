@@ -21,9 +21,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
 find_package(RtAudio CONFIG REQUIRED)
+find_package(Aubio CONFIG REQUIRED)
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (duplex "src/duplex.cpp")
+add_executable (duplex "test/duplex.cpp")
 
 target_link_libraries(duplex
   PRIVATE
@@ -31,7 +32,7 @@ target_link_libraries(duplex
 )
 
 # DLL
-add_library(duplexPlugin SHARED "src/duplexPlugin.cpp")
+add_library(duplexPlugin SHARED "test/duplexPlugin.cpp")
 
 target_link_libraries(duplexPlugin
   PRIVATE
@@ -45,4 +46,13 @@ add_custom_command(TARGET duplexPluginTest POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
           "$<TARGET_FILE:duplexPlugin>"
           "$<TARGET_FILE_DIR:duplexPluginTest>"
+)
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (duplexPitch "test/duplexPitch.cpp")
+
+target_link_libraries(duplexPitch
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
 )
