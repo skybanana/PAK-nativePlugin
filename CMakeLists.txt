@@ -56,3 +56,12 @@ target_link_libraries(duplexPitch
     RtAudio::rtaudio
     Aubio::aubio
 )
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (duplexChord "test/duplexChord.cpp")
+
+target_link_libraries(duplexChord
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
