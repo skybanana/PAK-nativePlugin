@@ -65,3 +65,12 @@ target_link_libraries(duplexChord
     RtAudio::rtaudio
     Aubio::aubio
 )
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (duplexTiming "test/duplexTiming.cpp")
+
+target_link_libraries(duplexTiming
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
