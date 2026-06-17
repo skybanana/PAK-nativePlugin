@@ -31,6 +31,13 @@ target_link_libraries(duplex
     RtAudio::rtaudio
 )
 
+add_executable (duplexDSP "test/duplexDSP.cpp")
+
+target_link_libraries(duplexDSP
+  PRIVATE
+    RtAudio::rtaudio
+)
+
 # DLL
 add_library(duplexPlugin SHARED "test/duplexPlugin.cpp")
 
