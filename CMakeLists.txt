@@ -22,6 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
 find_package(RtAudio CONFIG REQUIRED)
 find_package(Aubio CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (duplex "test/duplex.cpp")
@@ -80,4 +81,14 @@ target_link_libraries(duplexTiming
   PRIVATE
     RtAudio::rtaudio
     Aubio::aubio
+)
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (RhythmGame "test/RhythmGame.cpp" "test/ChartParser.cpp")
+
+target_link_libraries(RhythmGame
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
 )

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "0.1.0",
+
+  "song": {
+    "songId": "simple_chromatic_001",
+    "title": "Simple Chromatic",
+    "artist": "me",
+    "bpm": 120,
+    "resolution": 480,
+    "timeSignature": "4/4",
+    "durationMs": 19000,
+    "audioFile": "audio/simple_chromatic.ogg",
+    "audioOffsetMs": 0
+  },
+
+  "track": {
+    "trackId": "guitar_easy",
+    "instrument": "guitar",
+    "difficulty": "easy",
+    "tuning": ["E2", "A2", "D3", "G3", "B3", "E4"]
+  },
+
+  "notes": [
+    { "startTick": 960,   "durationTick": 960, "string": 6, "fret": 0, "finger": 0, "technique": "normal" },
+    { "startTick": 1920,  "durationTick": 960, "string": 6, "fret": 1, "finger": 1, "technique": "normal" },
+    { "startTick": 2880,  "durationTick": 960, "string": 6, "fret": 2, "finger": 2, "technique": "normal" },
+    { "startTick": 3840,  "durationTick": 960, "string": 6, "fret": 3, "finger": 3, "technique": "normal" },
+    { "startTick": 4800,  "durationTick": 960, "string": 6, "fret": 4, "finger": 4, "technique": "normal" },
+    { "startTick": 5760,  "durationTick": 960, "string": 6, "fret": 3, "finger": 3, "technique": "normal" },
+    { "startTick": 6720,  "durationTick": 960, "string": 6, "fret": 2, "finger": 2, "technique": "normal" },
+    { "startTick": 7680,  "durationTick": 960, "string": 6, "fret": 1, "finger": 1, "technique": "normal" },
+    { "startTick": 8640,  "durationTick": 960, "string": 6, "fret": 0, "finger": 0, "technique": "normal" },
+
+    { "startTick": 9600,  "durationTick": 960, "string": 6, "fret": 0, "finger": 0, "technique": "normal" },
+    { "startTick": 10560, "durationTick": 960, "string": 6, "fret": 1, "finger": 1, "technique": "normal" },
+    { "startTick": 11520, "durationTick": 960, "string": 6, "fret": 2, "finger": 2, "technique": "normal" },
+    { "startTick": 12480, "durationTick": 960, "string": 6, "fret": 3, "finger": 3, "technique": "normal" },
+    { "startTick": 13440, "durationTick": 960, "string": 6, "fret": 4, "finger": 4, "technique": "normal" },
+    { "startTick": 14400, "durationTick": 960, "string": 6, "fret": 3, "finger": 3, "technique": "normal" },
+    { "startTick": 15360, "durationTick": 960, "string": 6, "fret": 2, "finger": 2, "technique": "normal" },
+    { "startTick": 16320, "durationTick": 960, "string": 6, "fret": 1, "finger": 1, "technique": "normal" },
+    { "startTick": 17280, "durationTick": 960, "string": 6, "fret": 0, "finger": 0, "technique": "normal" }
+  ]
+}
