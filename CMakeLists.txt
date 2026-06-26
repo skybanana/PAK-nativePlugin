@@ -92,3 +92,17 @@ target_link_libraries(RhythmGame
     Aubio::aubio
     nlohmann_json::nlohmann_json
 )
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (RhythmGame_0.2v
+  "test/RhythmGame_0.2v.cpp"
+  "test/RhythmGame_0.2v.h"
+  "test/ChartParser.cpp"
+)
+
+target_link_libraries(RhythmGame_0.2v
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
+)
