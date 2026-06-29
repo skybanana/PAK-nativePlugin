@@ -47,6 +47,25 @@ target_link_libraries(duplexPlugin
     RtAudio::rtaudio
 )
 
+# Unity Native Plugin DLL
+add_library(PAKNativePlugin SHARED
+  "src/main.cpp"
+  "src/main.h"
+  "src/plugin_state.h"
+  "src/dsp.cpp"
+  "src/dsp.h"
+  "src/judge.cpp"
+  "src/judge.h"
+  "src/ChartParser.cpp"
+)
+
+target_link_libraries(PAKNativePlugin
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
+)
+
 # 설계 의도: DLL을 동적 로드하는 최소 실행 테스트를 별도 타겟으로 제공한다.
 add_executable(duplexPluginTest "test/duplexPluginTest.cpp")
 add_dependencies(duplexPluginTest duplexPlugin)
@@ -104,5 +123,16 @@ target_link_libraries(RhythmGame_0.2v
   PRIVATE
     RtAudio::rtaudio
     Aubio::aubio
+    nlohmann_json::nlohmann_json
+)
+
+# DLL 기반 리듬 게임 클라이언트 테스트
+add_executable(RhythmGameDLL
+  "test/RhythmGameDLL.cpp"
+  "test/ChartParser.cpp"
+)
+
+target_link_libraries(RhythmGameDLL
+  PRIVATE
     nlohmann_json::nlohmann_json
 )
