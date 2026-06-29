@@ -80,6 +80,8 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.lpfAlpha.store(0.2f);
     g_state.stopRequested.store(true);
     g_state.lpfState.assign(channels, 0.0f);
+    g_state.pitchObservations.clear();
+    g_state.pendingJudgments.clear();
 
     RtAudio::StreamParameters iParams, oParams;
     iParams.nChannels = channels;
@@ -136,6 +138,8 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     g_state.lastDetectedMidi = -1;
     g_state.gameStarted.store(false);
     g_state.summaryFinished.store(false);
+    g_state.pitchObservations.clear();
+    g_state.pendingJudgments.clear();
     prepareJudgeQueue(&g_state.judgeQueue, 64);
     return 0;
 }
@@ -157,6 +161,8 @@ extern "C" PLUGIN_API int StartSession(void) {
     g_state.lastStreamTime.store(0.0);
     g_state.audioQueue.readIndex.store(0);
     g_state.audioQueue.writeIndex.store(0);
+    g_state.pitchObservations.clear();
+    g_state.pendingJudgments.clear();
     prepareJudgeQueue(&g_state.judgeQueue, 64);
 
     g_judgeThread = std::thread(judgeThreadMain, &g_state);

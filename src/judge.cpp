@@ -119,6 +119,81 @@ void fillJudgeEvent(JudgeEvent *event,
                     double judgedAudioTimeMs,
                     double judgedChartTimeMs,
                     int detectedMidi,
+                    const ChartParser::ChartNote &note);
+
+bool selectPitchObservation(PluginState *state,
+                            const PendingJudgment &pending,
+                            PitchObservation *selected) {
+    // Selects the non-zero pitch closest to the delayed judgment time.
+    bool found = false;
+    double bestTimeDistance = 1000000.0;
+
+    for (const PitchObservation &observation : state->pitchObservations) {
+        if (observation.chartTimeMs < pending.onsetChartTimeMs)
+            continue;
+        if (observation.chartTimeMs > pending.deadlineChartTimeMs)
+            continue;
+        if (observation.midi == 0)
+            continue;
+
+        double timeDistance = std::abs(observation.chartTimeMs - pending.deadlineChartTimeMs);
+        if (!found || timeDistance < bestTimeDistance) {
+            *selected = observation;
+            bestTimeDistance = timeDistance;
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+void prunePitchObservations(PluginState *state, double chartTimeMs) {
+    // Keeps only recent pitch observations needed by pending judgments.
+    while (!state->pitchObservations.empty() &&
+           state->pitchObservations.front().chartTimeMs < chartTimeMs - 500.0) {
+        state->pitchObservations.erase(state->pitchObservations.begin());
+    }
+}
+
+void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
+    // Emits delayed judge events after their pitch window has closed.
+    size_t index = 0;
+    while (index < state->pendingJudgments.size()) {
+        PendingJudgment pending = state->pendingJudgments[index];
+        if (chartTimeMs < pending.deadlineChartTimeMs) {
+            index++;
+            continue;
+        }
+
+        const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
+        PitchObservation selected = {};
+        bool hasPitch = selectPitchObservation(state, pending, &selected);
+        int detectedMidi = hasPitch ? selected.midi : 0;
+        bool pitchMatched = std::abs(detectedMidi - note.midi) <= PITCH_TOLERANCE;
+        const char *timingResult = judgeTiming(std::abs(pending.errorMs));
+
+        JudgeEvent event;
+        int result = pitchMatched ? resultToCode(timingResult) : JudgeResult_Miss;
+        fillJudgeEvent(&event,
+                       pending.noteIndex,
+                       result,
+                       (float)pending.errorMs,
+                       pending.onsetAudioTimeMs,
+                       pending.onsetChartTimeMs,
+                       detectedMidi,
+                       note);
+        pushJudgeEvent(state, event);
+        state->pendingJudgments.erase(state->pendingJudgments.begin() + index);
+    }
+}
+
+void fillJudgeEvent(JudgeEvent *event,
+                    int noteIndex,
+                    int result,
+                    float errorMs,
+                    double judgedAudioTimeMs,
+                    double judgedChartTimeMs,
+                    int detectedMidi,
                     const ChartParser::ChartNote &note) {
     // Copies chart note data into a fixed-size Unity polling event.
     *event = {};
@@ -152,6 +227,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
 
     aubio_pitch_do(state->pitchDetector, state->input, state->pitch);
     state->lastDetectedMidi = (int)std::round(fvec_get_sample(state->pitch, 0));
+    state->pitchObservations.push_back({chartTimeMs, state->lastDetectedMidi});
+    prunePitchObservations(state, chartTimeMs);
 
     aubio_onset_do(state->onsetDetector, state->input, state->onset);
     int noteIndex = state->nextNoteIndex.load();
@@ -162,25 +239,19 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
         const ChartParser::ChartNote &note = state->chart.notes[noteIndex];
         double errorMs = onsetChartTimeMs - note.startMs;
         double absErrorMs = std::abs(errorMs);
-        const char *timingResult = judgeTiming(absErrorMs);
-        bool pitchMatched = std::abs(state->lastDetectedMidi - note.midi) <= PITCH_TOLERANCE;
 
         if (absErrorMs <= BAD_MS) {
-            JudgeEvent event;
-            int result = pitchMatched ? resultToCode(timingResult) : JudgeResult_Miss;
-            fillJudgeEvent(&event,
-                           noteIndex,
-                           result,
-                           (float)errorMs,
-                           onsetAudioTimeMs,
-                           onsetChartTimeMs,
-                           state->lastDetectedMidi,
-                           note);
-            pushJudgeEvent(state, event);
+            state->pendingJudgments.push_back({noteIndex,
+                                               onsetChartTimeMs,
+                                               onsetAudioTimeMs,
+                                               errorMs,
+                                               onsetChartTimeMs + PITCH_SETTLE_MS});
             noteIndex++;
             state->nextNoteIndex.store(noteIndex);
         }
     }
+
+    finalizePendingJudgments(state, chartTimeMs);
 
     noteIndex = state->nextNoteIndex.load();
     while (noteIndex < (int)state->chart.notes.size()) {
@@ -202,7 +273,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
         state->nextNoteIndex.store(noteIndex);
     }
 
-    if (state->nextNoteIndex.load() >= (int)state->chart.notes.size())
+    if (state->nextNoteIndex.load() >= (int)state->chart.notes.size() &&
+        state->pendingJudgments.empty())
         state->summaryFinished.store(true);
 }
 

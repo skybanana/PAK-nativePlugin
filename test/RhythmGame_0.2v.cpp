@@ -20,6 +20,9 @@ void prepareAudioQueue(AudioSpscQueue *queue, unsigned int blockCount, unsigned 
     for (unsigned int i = 0; i < blockCount; i++) {
         queue->blocks[i].streamTime = 0.0;
         queue->blocks[i].frames = 0;
+        queue->blocks[i].sourceSamplesAddress = 0;
+        queue->blocks[i].copiedSamplesAddress = 0;
+        queue->blocks[i].firstSampleAtPush = 0;
         queue->blocks[i].samples.assign(sampleCount, 0);
     }
     queue->readIndex.store(0);
@@ -40,6 +43,9 @@ bool pushAudioBlock(AudioSpscQueue *queue,
     AudioBlock &block = queue->blocks[write];
     block.streamTime = streamTime;
     block.frames = frames;
+    block.sourceSamplesAddress = reinterpret_cast<uintptr_t>(samples);
+    block.copiedSamplesAddress = reinterpret_cast<uintptr_t>(block.samples.data());
+    block.firstSampleAtPush = sampleCount > 0 ? samples[0] : 0;
     memcpy(block.samples.data(), samples, sampleCount * sizeof(MY_TYPE));
     queue->writeIndex.store(next, std::memory_order_release);
     return true;
@@ -118,6 +124,90 @@ const char *judgeTiming(double absErrorMs) {
     return "Miss";
 }
 
+bool selectPitchObservation(RhythmState *state,
+                            const PendingJudgment &pending,
+                            int targetMidi,
+                            PitchObservation *selected) {
+    // Selects the non-zero pitch closest to the delayed judgment time.
+    (void)targetMidi;
+    bool found = false;
+    double bestTimeDistance = 1000000.0;
+
+    for (const PitchObservation &observation : state->pitchObservations) {
+        if (observation.timeMs < pending.onsetMs)
+            continue;
+        if (observation.timeMs > pending.deadlineMs)
+            continue;
+        if (observation.midi == 0)
+            continue;
+
+        double timeDistance = std::abs(observation.timeMs - pending.deadlineMs);
+        if (!found || timeDistance < bestTimeDistance) {
+            *selected = observation;
+            bestTimeDistance = timeDistance;
+            found = true;
+        }
+    }
+
+    return found;
+}
+
+void prunePitchObservations(RhythmState *state, double currentTimeMs) {
+    // Keeps only recent pitch observations needed by pending judgments.
+    while (!state->pitchObservations.empty() &&
+           state->pitchObservations.front().timeMs < currentTimeMs - 500.0) {
+        state->pitchObservations.erase(state->pitchObservations.begin());
+    }
+}
+
+void finalizePendingJudgments(RhythmState *state, double currentTimeMs) {
+    // Finalizes delayed pitch judgments whose pitch window has closed.
+    size_t index = 0;
+    while (index < state->pendingJudgments.size()) {
+        PendingJudgment pending = state->pendingJudgments[index];
+        if (currentTimeMs < pending.deadlineMs) {
+            index++;
+            continue;
+        }
+
+        const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
+        PitchObservation selected = {};
+        bool hasPitch = selectPitchObservation(state, pending, note.midi, &selected);
+        int detectedMidi = hasPitch ? selected.midi : 0;
+        float detectedPitch = hasPitch ? selected.rawPitch : 0.0f;
+        double pitchTimeMs = hasPitch ? selected.timeMs : pending.deadlineMs;
+        bool pitchMatched = std::abs(detectedMidi - note.midi) <= PITCH_TOLERANCE;
+
+        if (detectedMidi == 0)
+            state->zeroMidiOnsetEvents++;
+        if (!pitchMatched)
+            state->wrongMidiOnsetEvents++;
+
+        std::ostringstream pitchText;
+        pitchText << "onset " << std::fixed << std::setprecision(1) << pending.onsetMs << " ms"
+                  << ", pitch " << pitchTimeMs << " ms"
+                  << ", block " << pending.blockMs << " ms"
+                  << ", error " << std::showpos << pending.errorMs << std::noshowpos << " ms"
+                  << ", raw " << detectedPitch << ", midi " << detectedMidi << "/" << note.midi
+                  << ", " << (pitchMatched ? "match" : "wrong");
+        state->pitchDiagnostics[pending.noteIndex] = pitchText.str();
+
+        const char *result = judgeTiming(std::abs(pending.errorMs));
+        std::ostringstream resultText;
+        if (pitchMatched) {
+            resultText << result << " (" << std::showpos << std::fixed << std::setprecision(1)
+                       << pending.errorMs << std::noshowpos << " ms, " << note.noteName << ")";
+        } else {
+            resultText << "Miss (wrong note: MIDI " << detectedMidi << ", target "
+                       << note.noteName << ")";
+        }
+
+        state->lastResult = resultText.str();
+        state->noteResults[pending.noteIndex] = resultText.str();
+        state->pendingJudgments.erase(state->pendingJudgments.begin() + index);
+    }
+}
+
 float lpf(float input, float previous, float alpha) {
     // Applies a simple one-pole low-pass filter.
     return previous + alpha * (input - previous);
@@ -157,6 +247,30 @@ void printSummary(RhythmState *state) {
                   << "string " << note.stringNumber << ", fret " << note.fret << ", "
                   << note.noteName << " @ " << formatSeconds(note.startMs / 1000.0) << " -> "
                   << state->noteResults[i] << "\n";
+    }
+
+    double averageLagMs = state->judgedAudioBlocks > 0
+                              ? state->queueLagSumMs / state->judgedAudioBlocks
+                              : 0.0;
+    double minLagMs = state->judgedAudioBlocks > 0 ? state->queueLagMinMs : 0.0;
+    std::cout << "\nSPSC diagnostics\n";
+    std::cout << "  pushed blocks       : " << state->pushedAudioBlocks.load() << "\n";
+    std::cout << "  dropped blocks      : " << state->droppedAudioBlocks.load() << "\n";
+    std::cout << "  judged blocks       : " << state->judgedAudioBlocks << "\n";
+    std::cout << "  pointer alias blocks: " << state->pointerAliasBlocks << "\n";
+    std::cout << "  changed first sample: " << state->changedFirstSampleBlocks << "\n";
+    std::cout << "  queue lag ms        : min " << std::fixed << std::setprecision(1)
+              << minLagMs << ", avg " << averageLagMs << ", max " << state->queueLagMaxMs
+              << "\n";
+
+    std::cout << "\nPitch at onset diagnostics\n";
+    std::cout << "  onset events          : " << state->onsetEvents << "\n";
+    std::cout << "  accepted onset events : " << state->acceptedOnsetEvents << "\n";
+    std::cout << "  outside window events : " << state->outsideWindowOnsetEvents << "\n";
+    std::cout << "  zero selected MIDI    : " << state->zeroMidiOnsetEvents << "\n";
+    std::cout << "  wrong selected MIDI   : " << state->wrongMidiOnsetEvents << "\n";
+    for (int i = 0; i < (int)state->chart.notes.size(); i++) {
+        std::cout << std::setw(2) << i + 1 << ". " << state->pitchDiagnostics[i] << "\n";
     }
     std::cout << std::flush;
 }
@@ -218,6 +332,17 @@ void processMonitorDsp(RhythmState *state,
 void processJudgmentBlock(RhythmState *state, AudioBlock *block) {
     // Judges one audio block that was captured by the audio callback.
     double gameTime = block->streamTime - COUNTDOWN_SECONDS;
+    double queueLagMs = (state->latestCallbackStreamTime.load() - block->streamTime) * 1000.0;
+    state->judgedAudioBlocks++;
+    state->queueLagSumMs += queueLagMs;
+    if (queueLagMs < state->queueLagMinMs)
+        state->queueLagMinMs = queueLagMs;
+    if (queueLagMs > state->queueLagMaxMs)
+        state->queueLagMaxMs = queueLagMs;
+    if (block->sourceSamplesAddress == block->copiedSamplesAddress)
+        state->pointerAliasBlocks++;
+    if (!block->samples.empty() && block->firstSampleAtPush != block->samples[0])
+        state->changedFirstSampleBlocks++;
 
     if (gameTime < 0.0) {
         if (block->streamTime >= state->nextPrintTime) {
@@ -239,37 +364,45 @@ void processJudgmentBlock(RhythmState *state, AudioBlock *block) {
     }
 
     aubio_pitch_do(state->pitchDetector, state->input, state->pitch);
-    state->lastDetectedMidi = (int)std::round(fvec_get_sample(state->pitch, 0));
+    state->lastDetectedPitch = fvec_get_sample(state->pitch, 0);
+    state->lastDetectedMidi = (int)std::round(state->lastDetectedPitch);
+    double currentMs = gameTime * 1000.0;
+    state->pitchObservations.push_back(
+        {currentMs, state->lastDetectedPitch, state->lastDetectedMidi});
+    prunePitchObservations(state, currentMs);
 
     aubio_onset_do(state->onsetDetector, state->input, state->onset);
     if (fvec_get_sample(state->onset, 0) != 0.0f &&
         state->nextNoteIndex < (int)state->chart.notes.size()) {
+        state->onsetEvents++;
         double onsetMs = aubio_onset_get_last_s(state->onsetDetector) * 1000.0;
         const ChartParser::ChartNote &note = state->chart.notes[state->nextNoteIndex];
         double errorMs = onsetMs - note.startMs;
         double absErrorMs = std::abs(errorMs);
-        const char *result = judgeTiming(absErrorMs);
-        bool pitchMatched = std::abs(state->lastDetectedMidi - note.midi) <= PITCH_TOLERANCE;
 
         std::ostringstream resultText;
-        if (absErrorMs <= BAD_MS && pitchMatched) {
-            resultText << result << " (" << std::showpos << std::fixed << std::setprecision(1)
+        if (absErrorMs <= BAD_MS) {
+            state->acceptedOnsetEvents++;
+            state->pendingJudgments.push_back({state->nextNoteIndex,
+                                               onsetMs,
+                                               currentMs,
+                                               errorMs,
+                                               onsetMs + PITCH_SETTLE_MS});
+            resultText << "Pending (" << std::showpos << std::fixed << std::setprecision(1)
                        << errorMs << std::noshowpos << " ms, " << note.noteName << ")";
-            state->noteResults[state->nextNoteIndex] = resultText.str();
-            state->nextNoteIndex++;
-        } else if (absErrorMs <= BAD_MS) {
-            resultText << "Miss (wrong note: MIDI " << state->lastDetectedMidi << ", target "
-                       << note.noteName << ")";
-            state->noteResults[state->nextNoteIndex] = resultText.str();
+            state->lastResult = resultText.str();
+            state->pitchDiagnostics[state->nextNoteIndex] = "waiting for pitch window";
             state->nextNoteIndex++;
         } else {
+            state->outsideWindowOnsetEvents++;
             resultText << "Miss (" << std::showpos << std::fixed << std::setprecision(1) << errorMs
                        << std::noshowpos << " ms)";
+            state->lastResult = resultText.str();
         }
-
-        state->lastResult = resultText.str();
         printHud(state, gameTime);
     }
+
+    finalizePendingJudgments(state, currentMs);
 
     while (state->nextNoteIndex < (int)state->chart.notes.size()) {
         const ChartParser::ChartNote &note = state->chart.notes[state->nextNoteIndex];
@@ -280,11 +413,13 @@ void processJudgmentBlock(RhythmState *state, AudioBlock *block) {
         resultText << "Miss (no input: " << note.noteName << ")";
         state->lastResult = resultText.str();
         state->noteResults[state->nextNoteIndex] = resultText.str();
+        state->pitchDiagnostics[state->nextNoteIndex] = "no accepted onset before timeout";
         state->nextNoteIndex++;
         printHud(state, gameTime);
     }
 
-    if (state->nextNoteIndex >= (int)state->chart.notes.size() && !state->summaryPrinted) {
+    if (state->nextNoteIndex >= (int)state->chart.notes.size() &&
+        state->pendingJudgments.empty() && !state->summaryPrinted) {
         state->summaryPrinted = true;
         printHud(state, gameTime);
         printSummary(state);
@@ -345,7 +480,11 @@ int inoutRhythmGame(void *outputBuffer,
     MY_TYPE *output = (MY_TYPE *)outputBuffer;
     unsigned int sampleCount = nBufferFrames * state->channels;
 
-    pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, streamTime);
+    state->latestCallbackStreamTime.store(streamTime);
+    if (pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, streamTime))
+        state->pushedAudioBlocks.fetch_add(1);
+    else
+        state->droppedAudioBlocks.fetch_add(1);
     processMonitorDsp(state, output, input, nBufferFrames);
     return 0;
 }
@@ -384,6 +523,20 @@ int main(int argc, char *argv[]) {
     RhythmState state = {};
     state.audioQueue.readIndex.store(0);
     state.audioQueue.writeIndex.store(0);
+    state.latestCallbackStreamTime.store(0.0);
+    state.pushedAudioBlocks.store(0);
+    state.droppedAudioBlocks.store(0);
+    state.judgedAudioBlocks = 0;
+    state.pointerAliasBlocks = 0;
+    state.changedFirstSampleBlocks = 0;
+    state.onsetEvents = 0;
+    state.acceptedOnsetEvents = 0;
+    state.outsideWindowOnsetEvents = 0;
+    state.zeroMidiOnsetEvents = 0;
+    state.wrongMidiOnsetEvents = 0;
+    state.queueLagMinMs = 1000000000.0;
+    state.queueLagMaxMs = 0.0;
+    state.queueLagSumMs = 0.0;
     state.quitRequested.store(false);
 
     if (!ChartParser::loadChart(chartPath, state.chart)) {
@@ -430,9 +583,13 @@ int main(int argc, char *argv[]) {
     state.nextPrintTime = 0.05;
     state.nextNoteIndex = 0;
     state.lastDetectedMidi = -1;
+    state.lastDetectedPitch = 0.0f;
     state.gameStarted = false;
     state.summaryPrinted = false;
     state.noteResults.assign(state.chart.notes.size(), "Not judged");
+    state.pitchDiagnostics.assign(state.chart.notes.size(), "not judged");
+    state.pitchObservations.clear();
+    state.pendingJudgments.clear();
     state.inputGain = 4.0f;
     state.outputGain = 0.5f;
     state.lpfAlpha = 0.2f;

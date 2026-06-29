@@ -16,9 +16,9 @@ enum JudgeResult {
 struct JudgeEvent {
     int noteIndex;
     int result;
-    // Plugin audio stream time when this judgment was made.
+    // Plugin audio stream time for the judged onset.
     double judgedAudioTimeMs;
-    // Chart time when this judgment was made.
+    // Chart time for the judged onset.
     double judgedChartTimeMs;
     float errorMs;
     int detectedMidi;

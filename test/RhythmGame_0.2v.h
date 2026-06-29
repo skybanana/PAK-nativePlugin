@@ -20,10 +20,14 @@ const double GOOD_MS = 140.0;
 const double BAD_MS = 240.0;
 const double COUNTDOWN_SECONDS = 5.0;
 const int PITCH_TOLERANCE = 0;
+const double PITCH_SETTLE_MS = 80.0;
 
 struct AudioBlock {
     double streamTime;
     unsigned int frames;
+    uintptr_t sourceSamplesAddress;
+    uintptr_t copiedSamplesAddress;
+    MY_TYPE firstSampleAtPush;
     std::vector<MY_TYPE> samples;
 };
 
@@ -31,6 +35,20 @@ struct AudioSpscQueue {
     std::vector<AudioBlock> blocks;
     std::atomic<unsigned int> readIndex;
     std::atomic<unsigned int> writeIndex;
+};
+
+struct PitchObservation {
+    double timeMs;
+    float rawPitch;
+    int midi;
+};
+
+struct PendingJudgment {
+    int noteIndex;
+    double onsetMs;
+    double blockMs;
+    double errorMs;
+    double deadlineMs;
 };
 
 struct RhythmState {
@@ -43,8 +61,12 @@ struct RhythmState {
     fvec_t *onset;
     aubio_pitch_t *pitchDetector;
     aubio_onset_t *onsetDetector;
+    float lastDetectedPitch;
     std::string lastResult;
     std::vector<std::string> noteResults;
+    std::vector<std::string> pitchDiagnostics;
+    std::vector<PitchObservation> pitchObservations;
+    std::vector<PendingJudgment> pendingJudgments;
     double nextPrintTime;
     int nextNoteIndex;
     int lastDetectedMidi;
@@ -54,6 +76,20 @@ struct RhythmState {
     float outputGain;
     float lpfAlpha;
     std::vector<float> lpfState;
+    std::atomic<double> latestCallbackStreamTime;
+    std::atomic<unsigned int> pushedAudioBlocks;
+    std::atomic<unsigned int> droppedAudioBlocks;
+    unsigned int judgedAudioBlocks;
+    unsigned int pointerAliasBlocks;
+    unsigned int changedFirstSampleBlocks;
+    unsigned int onsetEvents;
+    unsigned int acceptedOnsetEvents;
+    unsigned int outsideWindowOnsetEvents;
+    unsigned int zeroMidiOnsetEvents;
+    unsigned int wrongMidiOnsetEvents;
+    double queueLagMinMs;
+    double queueLagMaxMs;
+    double queueLagSumMs;
     std::atomic<bool> quitRequested;
 };
 

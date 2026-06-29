@@ -16,6 +16,7 @@ typedef int16_t MY_TYPE;
 
 constexpr double COUNTDOWN_SECONDS = 5.0;
 constexpr double COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000.0;
+constexpr double PITCH_SETTLE_MS = 80.0;
 
 struct AudioBlock {
     double streamTime;
@@ -34,6 +35,19 @@ struct JudgeEventQueue {
     unsigned int readIndex;
     unsigned int writeIndex;
     std::mutex mutex;
+};
+
+struct PitchObservation {
+    double chartTimeMs;
+    int midi;
+};
+
+struct PendingJudgment {
+    int noteIndex;
+    double onsetChartTimeMs;
+    double onsetAudioTimeMs;
+    double errorMs;
+    double deadlineChartTimeMs;
 };
 
 struct PluginState {
@@ -59,5 +73,7 @@ struct PluginState {
     std::atomic<unsigned int> droppedJudgeEvents;
     std::atomic<double> lastStreamTime;
     std::atomic<int> nextNoteIndex;
+    std::vector<PitchObservation> pitchObservations;
+    std::vector<PendingJudgment> pendingJudgments;
     int lastDetectedMidi;
 };
