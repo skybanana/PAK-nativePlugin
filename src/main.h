@@ -30,7 +30,7 @@ struct JudgeEvent {
 };
 
 struct AudioStats {
-    // Raw RtAudio stream time in seconds.
+    // Session-relative stream time in seconds.
     double streamTime;
     // Plugin audio stream time in milliseconds.
     double audioTimeMs;
@@ -62,6 +62,9 @@ PLUGIN_API int Initialize(unsigned int channels,
 
 // Loads a chart JSON file for the next session.
 PLUGIN_API int LoadChart(const char *chartPath);
+
+// Resets the current session clock and judgment progress.
+PLUGIN_API void ResetSessionTime(void);
 
 // Starts audio capture, monitor DSP, and judgment processing.
 PLUGIN_API int StartSession(void);

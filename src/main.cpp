@@ -26,8 +26,12 @@ int inoutRhythmGame(void *outputBuffer,
     MY_TYPE *output = (MY_TYPE *)outputBuffer;
     unsigned int sampleCount = nBufferFrames * state->channels;
 
-    state->lastStreamTime.store(streamTime);
-    if (!pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, streamTime))
+    if (!state->sessionClockStarted.exchange(true))
+        state->sessionStreamTimeOffset.store(streamTime);
+    double sessionStreamTime = streamTime - state->sessionStreamTimeOffset.load();
+
+    state->lastStreamTime.store(sessionStreamTime);
+    if (!pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, sessionStreamTime))
         state->droppedAudioBlocks.fetch_add(1);
     processMonitorDsp(state, output, input, nBufferFrames);
     return 0;
@@ -79,6 +83,8 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.outputGain.store(0.5f);
     g_state.lpfAlpha.store(0.2f);
     g_state.stopRequested.store(true);
+    g_state.sessionStreamTimeOffset.store(0.0);
+    g_state.sessionClockStarted.store(false);
     g_state.lpfState.assign(channels, 0.0f);
     g_state.pitchObservations.clear();
     g_state.pendingJudgments.clear();
@@ -134,14 +140,26 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     if (!ChartParser::loadChart(chartPath, g_state.chart))
         return -1;
 
+    ResetSessionTime();
+    return 0;
+}
+
+extern "C" PLUGIN_API void ResetSessionTime(void) {
+    // Resets the session-relative clock and judgment progress.
     g_state.nextNoteIndex.store(0);
     g_state.lastDetectedMidi = -1;
     g_state.gameStarted.store(false);
     g_state.summaryFinished.store(false);
+    g_state.lastStreamTime.store(0.0);
+    g_state.sessionStreamTimeOffset.store(0.0);
+    g_state.sessionClockStarted.store(false);
+    g_state.audioQueue.readIndex.store(0);
+    g_state.audioQueue.writeIndex.store(0);
     g_state.pitchObservations.clear();
     g_state.pendingJudgments.clear();
+    if (g_state.onsetDetector)
+        aubio_onset_reset(g_state.onsetDetector);
     prepareJudgeQueue(&g_state.judgeQueue, 64);
-    return 0;
 }
 
 extern "C" PLUGIN_API int StartSession(void) {
@@ -151,19 +169,10 @@ extern "C" PLUGIN_API int StartSession(void) {
     if (g_adac->isStreamOpen() == false)
         return -1;
 
-    g_state.nextNoteIndex.store(0);
-    g_state.lastDetectedMidi = -1;
+    ResetSessionTime();
     g_state.stopRequested.store(false);
-    g_state.gameStarted.store(false);
-    g_state.summaryFinished.store(false);
     g_state.droppedAudioBlocks.store(0);
     g_state.droppedJudgeEvents.store(0);
-    g_state.lastStreamTime.store(0.0);
-    g_state.audioQueue.readIndex.store(0);
-    g_state.audioQueue.writeIndex.store(0);
-    g_state.pitchObservations.clear();
-    g_state.pendingJudgments.clear();
-    prepareJudgeQueue(&g_state.judgeQueue, 64);
 
     g_judgeThread = std::thread(judgeThreadMain, &g_state);
     if (g_adac->startStream()) {

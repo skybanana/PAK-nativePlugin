@@ -72,6 +72,8 @@ struct PluginState {
     std::atomic<unsigned int> droppedAudioBlocks;
     std::atomic<unsigned int> droppedJudgeEvents;
     std::atomic<double> lastStreamTime;
+    std::atomic<double> sessionStreamTimeOffset;
+    std::atomic<bool> sessionClockStarted;
     std::atomic<int> nextNoteIndex;
     std::vector<PitchObservation> pitchObservations;
     std::vector<PendingJudgment> pendingJudgments;
