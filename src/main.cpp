@@ -87,6 +87,7 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.sessionClockStarted.store(false);
     g_state.lpfState.assign(channels, 0.0f);
     g_state.pitchObservations.clear();
+    g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
 
     RtAudio::StreamParameters iParams, oParams;
@@ -124,6 +125,7 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
 
     prepareAudioQueue(&g_state.audioQueue, 8, g_state.bufferFrames * channels);
     prepareJudgeQueue(&g_state.judgeQueue, 64);
+    prepareGuitarInputQueue(&g_state.guitarInputQueue, 64);
 
     g_state.input = new_fvec(g_state.bufferFrames);
     g_state.pitch = new_fvec(1);
@@ -156,10 +158,12 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.audioQueue.readIndex.store(0);
     g_state.audioQueue.writeIndex.store(0);
     g_state.pitchObservations.clear();
+    g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
     if (g_state.onsetDetector)
         aubio_onset_reset(g_state.onsetDetector);
     prepareJudgeQueue(&g_state.judgeQueue, 64);
+    prepareGuitarInputQueue(&g_state.guitarInputQueue, 64);
 }
 
 extern "C" PLUGIN_API int StartSession(void) {
@@ -201,6 +205,11 @@ extern "C" PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float
 extern "C" PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent) {
     // Polls one pending judge event through the judge module.
     return pollJudgeEvent(&g_state, outEvent);
+}
+
+extern "C" PLUGIN_API int PollGuitarInputEvent(GuitarInputEvent *outEvent) {
+    // Polls one pending guitar input event through the judge module.
+    return pollGuitarInputEvent(&g_state, outEvent);
 }
 
 extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {

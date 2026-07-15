@@ -20,6 +20,7 @@ Initialize
   -> SetDSPParams
   -> StartSession
       -> GetAudioStats 반복 호출
+      -> PollGuitarInputEvent 반복 호출
       -> PollJudgeEvent 반복 호출
   -> StopSession
   -> Shutdown
@@ -62,6 +63,13 @@ public static class PakNativePlugin
 
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 16)]
         public string noteName;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GuitarInputEvent
+    {
+        public int midi;
+        public double audioTimeMs;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -110,6 +118,9 @@ public static class PakNativePlugin
     public static extern int PollJudgeEvent(out JudgeEvent outEvent);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PollGuitarInputEvent(out GuitarInputEvent outEvent);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int GetAudioStats(out AudioStats outStats);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -145,6 +156,18 @@ public static class PakNativePlugin
 | `fret` | `int` | 프렛 번호 |
 | `startMs` | `int` | 채보 노트 시작 시각 |
 | `noteName` | `char[16]` | 목표 음 이름. 예: `E2`, `F#3` |
+
+## GuitarInputEvent
+
+`PollGuitarInputEvent`로 가져오는 기타 입력 이벤트입니다.
+
+채보 판정과 별개로, 입력 오디오에서 onset이 감지된 뒤 80 ms 피치 안정 구간을 기다리고 MIDI 피치가 확인되면 이벤트가 발생합니다.
+MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `midi` | `int` | 감지된 MIDI 피치 |
+| `audioTimeMs` | `double` | 플러그인 오디오 스트림 기준 onset 시각 |
 
 ## AudioStats
 
@@ -289,6 +312,33 @@ while (PakNativePlugin.PollJudgeEvent(out var judgeEvent) == 1)
 }
 ```
 
+### PollGuitarInputEvent
+
+```c
+int PollGuitarInputEvent(GuitarInputEvent *outEvent);
+```
+
+대기 중인 기타 입력 이벤트를 하나 가져옵니다.
+
+반환값:
+
+- `1`: 이벤트 있음. `outEvent`에 값이 복사됨
+- `0`: 이벤트 없음
+
+채보 판정 이벤트와 독립적으로 동작하므로 Client 조작용 입력에 사용할 수 있습니다.
+채보를 로드하지 않은 상태에서도 오디오 세션이 실행 중이면 polling할 수 있습니다.
+Unity에서는 MIDI 값을 원하는 동작에 매핑하면 됩니다.
+
+```csharp
+while (PakNativePlugin.PollGuitarInputEvent(out var inputEvent) == 1)
+{
+    if (inputEvent.midi == 40) // E2
+    {
+        // 확인 처리
+    }
+}
+```
+
 ### GetAudioStats
 
 ```c
@@ -327,6 +377,14 @@ void Update()
     {
         var result = (PakNativePlugin.JudgeResult)judgeEvent.result;
         // 판정 UI / 점수 처리
+    }
+
+    while (PakNativePlugin.PollGuitarInputEvent(out var inputEvent) == 1)
+    {
+        if (inputEvent.midi == 40)
+        {
+            // E2 입력 처리
+        }
     }
 
     if (stats.isFinished == 1)

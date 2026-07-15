@@ -12,5 +12,7 @@ AudioBlock *frontAudioBlock(AudioSpscQueue *queue);
 void popAudioBlock(AudioSpscQueue *queue);
 void prepareJudgeQueue(JudgeEventQueue *queue, unsigned int eventCount);
 int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent);
+void prepareGuitarInputQueue(GuitarInputEventQueue *queue, unsigned int eventCount);
+int pollGuitarInputEvent(PluginState *state, GuitarInputEvent *outEvent);
 void processJudgmentBlock(PluginState *state, AudioBlock *block);
 void judgeThreadMain(PluginState *state);

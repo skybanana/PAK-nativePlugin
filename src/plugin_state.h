@@ -37,9 +37,22 @@ struct JudgeEventQueue {
     std::mutex mutex;
 };
 
+struct GuitarInputEventQueue {
+    std::vector<GuitarInputEvent> events;
+    unsigned int readIndex;
+    unsigned int writeIndex;
+    std::mutex mutex;
+};
+
 struct PitchObservation {
+    double audioTimeMs;
     double chartTimeMs;
     int midi;
+};
+
+struct PendingGuitarInput {
+    double onsetAudioTimeMs;
+    double deadlineAudioTimeMs;
 };
 
 struct PendingJudgment {
@@ -57,6 +70,7 @@ struct PluginState {
     unsigned int bufferFrames;
     AudioSpscQueue audioQueue;
     JudgeEventQueue judgeQueue;
+    GuitarInputEventQueue guitarInputQueue;
     fvec_t *input;
     fvec_t *pitch;
     fvec_t *onset;
@@ -76,6 +90,7 @@ struct PluginState {
     std::atomic<bool> sessionClockStarted;
     std::atomic<int> nextNoteIndex;
     std::vector<PitchObservation> pitchObservations;
+    std::vector<PendingGuitarInput> pendingGuitarInputs;
     std::vector<PendingJudgment> pendingJudgments;
     int lastDetectedMidi;
 };

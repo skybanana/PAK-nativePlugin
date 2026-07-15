@@ -29,6 +29,12 @@ struct JudgeEvent {
     char noteName[16];
 };
 
+struct GuitarInputEvent {
+    int midi;
+    // Plugin audio stream time for the detected guitar onset.
+    double audioTimeMs;
+};
+
 struct AudioStats {
     // Session-relative stream time in seconds.
     double streamTime;
@@ -77,6 +83,9 @@ PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
 
 // Polls one pending judge event.
 PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent);
+
+// Polls one pending guitar input event.
+PLUGIN_API int PollGuitarInputEvent(GuitarInputEvent *outEvent);
 
 // Copies current audio and judgment progress stats.
 PLUGIN_API int GetAudioStats(AudioStats *outStats);

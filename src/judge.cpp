@@ -90,6 +90,38 @@ int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent) {
     return 1;
 }
 
+void prepareGuitarInputQueue(GuitarInputEventQueue *queue, unsigned int eventCount) {
+    // Prepares a fixed event ring for guitar-control input events.
+    std::lock_guard<std::mutex> lock(queue->mutex);
+    queue->events.assign(eventCount, {});
+    queue->readIndex = 0;
+    queue->writeIndex = 0;
+}
+
+void pushGuitarInputEvent(PluginState *state, const GuitarInputEvent &event) {
+    // Pushes one detected guitar input for Unity to poll later.
+    GuitarInputEventQueue *queue = &state->guitarInputQueue;
+    std::lock_guard<std::mutex> lock(queue->mutex);
+    unsigned int next = (queue->writeIndex + 1) % (unsigned int)queue->events.size();
+    if (next == queue->readIndex)
+        return;
+
+    queue->events[queue->writeIndex] = event;
+    queue->writeIndex = next;
+}
+
+int pollGuitarInputEvent(PluginState *state, GuitarInputEvent *outEvent) {
+    // Pops one pending guitar input event for the Unity-side polling API.
+    GuitarInputEventQueue *queue = &state->guitarInputQueue;
+    std::lock_guard<std::mutex> lock(queue->mutex);
+    if (queue->readIndex == queue->writeIndex)
+        return 0;
+
+    *outEvent = queue->events[queue->readIndex];
+    queue->readIndex = (queue->readIndex + 1) % (unsigned int)queue->events.size();
+    return 1;
+}
+
 int resultToCode(const char *result) {
     // Converts the timing text into a compact C ABI result code.
     if (strcmp(result, "Perfect") == 0)
@@ -147,11 +179,59 @@ bool selectPitchObservation(PluginState *state,
     return found;
 }
 
+bool selectGuitarPitchObservation(PluginState *state,
+                                  const PendingGuitarInput &pending,
+                                  PitchObservation *selected) {
+    // Selects the non-zero pitch closest to the guitar input settle deadline.
+    bool found = false;
+    double bestTimeDistance = 1000000.0;
+
+    for (const PitchObservation &observation : state->pitchObservations) {
+        if (observation.audioTimeMs < pending.onsetAudioTimeMs)
+            continue;
+        if (observation.audioTimeMs > pending.deadlineAudioTimeMs)
+            continue;
+        if (observation.midi == 0)
+            continue;
+
+        double timeDistance = std::abs(observation.audioTimeMs - pending.deadlineAudioTimeMs);
+        if (!found || timeDistance < bestTimeDistance) {
+            *selected = observation;
+            bestTimeDistance = timeDistance;
+            found = true;
+        }
+    }
+
+    return found;
+}
+
 void prunePitchObservations(PluginState *state, double chartTimeMs) {
     // Keeps only recent pitch observations needed by pending judgments.
     while (!state->pitchObservations.empty() &&
            state->pitchObservations.front().chartTimeMs < chartTimeMs - 500.0) {
         state->pitchObservations.erase(state->pitchObservations.begin());
+    }
+}
+
+void finalizePendingGuitarInputs(PluginState *state, double audioTimeMs) {
+    // Emits guitar input events after their pitch settle window has closed.
+    size_t index = 0;
+    while (index < state->pendingGuitarInputs.size()) {
+        PendingGuitarInput pending = state->pendingGuitarInputs[index];
+        if (audioTimeMs < pending.deadlineAudioTimeMs) {
+            index++;
+            continue;
+        }
+
+        PitchObservation selected = {};
+        if (selectGuitarPitchObservation(state, pending, &selected)) {
+            GuitarInputEvent event = {};
+            event.midi = selected.midi;
+            event.audioTimeMs = pending.onsetAudioTimeMs;
+            pushGuitarInputEvent(state, event);
+        }
+
+        state->pendingGuitarInputs.erase(state->pendingGuitarInputs.begin() + index);
     }
 }
 
@@ -214,11 +294,6 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     // Judges one captured audio block and emits note events.
     double audioTimeMs = block->streamTime * 1000.0;
     double chartTimeMs = audioTimeMs - COUNTDOWN_MS;
-    if (chartTimeMs < 0.0)
-        return;
-
-    if (!state->gameStarted.load())
-        state->gameStarted.store(true);
 
     for (unsigned int i = 0; i < block->frames; i++) {
         smpl_t sample = (smpl_t)block->samples[i * state->channels] / 32768.0f;
@@ -227,15 +302,27 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
 
     aubio_pitch_do(state->pitchDetector, state->input, state->pitch);
     state->lastDetectedMidi = (int)std::round(fvec_get_sample(state->pitch, 0));
-    state->pitchObservations.push_back({chartTimeMs, state->lastDetectedMidi});
+    state->pitchObservations.push_back({audioTimeMs, chartTimeMs, state->lastDetectedMidi});
     prunePitchObservations(state, chartTimeMs);
 
     aubio_onset_do(state->onsetDetector, state->input, state->onset);
+    bool hasOnset = fvec_get_sample(state->onset, 0) != 0.0f;
+    double onsetAudioTimeMs = aubio_onset_get_last_s(state->onsetDetector) * 1000.0;
+    double onsetChartTimeMs = onsetAudioTimeMs - COUNTDOWN_MS;
+    if (hasOnset) {
+        state->pendingGuitarInputs.push_back({onsetAudioTimeMs,
+                                              onsetAudioTimeMs + PITCH_SETTLE_MS});
+    }
+    finalizePendingGuitarInputs(state, audioTimeMs);
+
+    if (chartTimeMs < 0.0)
+        return;
+
+    if (!state->gameStarted.load())
+        state->gameStarted.store(true);
+
     int noteIndex = state->nextNoteIndex.load();
-    if (fvec_get_sample(state->onset, 0) != 0.0f &&
-        noteIndex < (int)state->chart.notes.size()) {
-        double onsetChartTimeMs = aubio_onset_get_last_s(state->onsetDetector) * 1000.0;
-        double onsetAudioTimeMs = onsetChartTimeMs + COUNTDOWN_MS;
+    if (hasOnset && noteIndex < (int)state->chart.notes.size()) {
         const ChartParser::ChartNote &note = state->chart.notes[noteIndex];
         double errorMs = onsetChartTimeMs - note.startMs;
         double absErrorMs = std::abs(errorMs);
