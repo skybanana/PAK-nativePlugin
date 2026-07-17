@@ -1,5 +1,6 @@
 #include "judge.h"
 
+#include "eventQueue.h"
 #include "input.h"
 #include "plugin_state.h"
 
@@ -14,36 +15,22 @@ const double GOOD_MS = 140.0;
 const double BAD_MS = 240.0;
 const int PITCH_TOLERANCE = 0;
 
-void prepareJudgeQueue(JudgeEventQueue *queue, unsigned int eventCount) {
-    // Prepares a fixed event ring for the plugin-to-Unity polling API.
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    queue->events.assign(eventCount, {});
-    queue->readIndex = 0;
-    queue->writeIndex = 0;
-}
-
 void pushJudgeEvent(PluginState *state, const JudgeEvent &event) {
     // Pushes one note judgment for Unity to poll later.
-    JudgeEventQueue *queue = &state->judgeQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    unsigned int next = (queue->writeIndex + 1) % (unsigned int)queue->events.size();
-    if (next == queue->readIndex) {
+    PluginEvent output = {};
+    output.type = PluginEvent_Judge;
+    output.judge = event;
+    if (!pushPluginEvent(&state->eventQueue, output))
         state->droppedJudgeEvents.fetch_add(1);
-        return;
-    }
-    queue->events[queue->writeIndex] = event;
-    queue->writeIndex = next;
 }
 
 int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent) {
     // Pops one pending judge event for the Unity-side polling API.
-    JudgeEventQueue *queue = &state->judgeQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    if (queue->readIndex == queue->writeIndex)
+    PluginEvent event = {};
+    if (!pollPluginEvent(&state->eventQueue, PluginEvent_Judge, &event))
         return 0;
 
-    *outEvent = queue->events[queue->readIndex];
-    queue->readIndex = (queue->readIndex + 1) % (unsigned int)queue->events.size();
+    *outEvent = event.judge;
     return 1;
 }
 
@@ -186,11 +173,11 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     bool hasOnset = fvec_get_sample(state->onset, 0) != 0.0f;
     double onsetAudioTimeMs = aubio_onset_get_last_s(state->onsetDetector) * 1000.0;
     double onsetChartTimeMs = onsetAudioTimeMs - COUNTDOWN_MS;
-    if (hasOnset) {
-        state->pendingGuitarInputs.push_back({onsetAudioTimeMs,
-                                              onsetAudioTimeMs + PITCH_SETTLE_MS});
+
+    if (state->sessionMode.load() == SessionMode_GuitarInput) {
+        processGuitarInputBlock(state, hasOnset, onsetAudioTimeMs, audioTimeMs);
+        return;
     }
-    finalizePendingGuitarInputs(state, audioTimeMs);
 
     if (chartTimeMs < 0.0)
         return;

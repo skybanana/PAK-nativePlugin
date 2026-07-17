@@ -51,6 +51,8 @@ target_link_libraries(duplexPlugin
 add_library(PAKNativePlugin SHARED
   "src/audioQueue.cpp"
   "src/audioQueue.h"
+  "src/eventQueue.cpp"
+  "src/eventQueue.h"
   "src/main.cpp"
   "src/main.h"
   "src/plugin_state.h"

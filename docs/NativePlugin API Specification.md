@@ -22,7 +22,6 @@ Initialize
   -> SetDSPParams
   -> StartSession
       -> GetAudioStats 반복 호출
-      -> PollGuitarInputEvent 반복 호출
       -> PollJudgeEvent 반복 호출
   -> StopSession
   -> Shutdown
@@ -44,6 +43,8 @@ Initialize
 `ResetSessionTime`은 새 세션 시작 전에 내부 시간과 판정 진행 상태를 0부터 다시 시작하도록 초기화합니다.
 `LoadChart`는 채보 판정에만 필요하며, 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
 `StartSession`은 오디오 스트림과 판정 스레드를 시작하므로 `PollJudgeEvent`, `PollGuitarInputEvent`를 사용하기 전에 반드시 호출해야 합니다.
+한 세션은 채보 판정 또는 기타 입력 중 하나의 모드로만 동작합니다.
+`LoadChart`를 호출한 뒤 시작한 세션은 채보 판정 모드이며, `LoadChart` 없이 시작한 세션은 기타 입력 모드입니다.
 세션 종료 시에는 `StopSession`을 호출하고, 플러그인을 더 이상 쓰지 않을 때 `Shutdown`을 호출합니다.
 
 ## Unity C# 선언 예시
@@ -343,7 +344,8 @@ int PollGuitarInputEvent(GuitarInputEvent *outEvent);
 - `0`: 이벤트 없음
 
 채보 판정 이벤트와 독립적으로 동작하므로 Client 조작용 입력에 사용할 수 있습니다.
-채보를 로드하지 않은 상태에서도 사용할 수 있지만, 이벤트 생성을 위해 `StartSession`으로 오디오 세션을 먼저 시작해야 합니다.
+기타 입력 모드는 채보를 로드하지 않은 상태에서 `StartSession`을 호출해 시작합니다.
+채보 판정 모드로 시작한 세션에서는 `PollGuitarInputEvent`가 이벤트를 반환하지 않습니다.
 Unity에서는 MIDI 값을 원하는 동작에 매핑하면 됩니다.
 
 ```csharp
@@ -377,7 +379,7 @@ void Shutdown(void);
 
 오디오 스트림, 판정 스레드, aubio 리소스를 해제합니다.
 
-## Unity 사용 루프 예시
+## Unity 채보 판정 루프 예시
 
 ```csharp
 void Update()
@@ -396,17 +398,27 @@ void Update()
         // 판정 UI / 점수 처리
     }
 
+    if (stats.isFinished == 1)
+    {
+        // 결과 화면
+    }
+}
+```
+
+## Unity 기타 입력 루프 예시
+
+```csharp
+void Update()
+{
+    if (PakNativePlugin.GetAudioStats(out var stats) != 0)
+        return;
+
     while (PakNativePlugin.PollGuitarInputEvent(out var inputEvent) == 1)
     {
         if (inputEvent.midi == 40)
         {
             // E2 입력 처리
         }
-    }
-
-    if (stats.isFinished == 1)
-    {
-        // 결과 화면
     }
 }
 ```

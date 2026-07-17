@@ -2,6 +2,7 @@
 
 #include "audioQueue.h"
 #include "dsp.h"
+#include "eventQueue.h"
 #include "input.h"
 #include "judge.h"
 
@@ -85,6 +86,8 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.outputGain.store(0.5f);
     g_state.lpfAlpha.store(0.2f);
     g_state.stopRequested.store(true);
+    g_state.requestedSessionMode.store(SessionMode_GuitarInput);
+    g_state.sessionMode.store(SessionMode_None);
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
     g_state.lpfState.assign(channels, 0.0f);
@@ -126,8 +129,7 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     }
 
     prepareAudioQueue(&g_state.audioQueue, 8, g_state.bufferFrames * channels);
-    prepareJudgeQueue(&g_state.judgeQueue, 64);
-    prepareGuitarInputQueue(&g_state.guitarInputQueue, 64);
+    preparePluginEventQueue(&g_state.eventQueue, 64);
 
     g_state.input = new_fvec(g_state.bufferFrames);
     g_state.pitch = new_fvec(1);
@@ -144,6 +146,7 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     if (!ChartParser::loadChart(chartPath, g_state.chart))
         return -1;
 
+    g_state.requestedSessionMode.store(SessionMode_Judge);
     ResetSessionTime();
     return 0;
 }
@@ -154,6 +157,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.lastDetectedMidi = -1;
     g_state.gameStarted.store(false);
     g_state.summaryFinished.store(false);
+    g_state.sessionMode.store(SessionMode_None);
     g_state.lastStreamTime.store(0.0);
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
@@ -164,8 +168,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.pendingJudgments.clear();
     if (g_state.onsetDetector)
         aubio_onset_reset(g_state.onsetDetector);
-    prepareJudgeQueue(&g_state.judgeQueue, 64);
-    prepareGuitarInputQueue(&g_state.guitarInputQueue, 64);
+    preparePluginEventQueue(&g_state.eventQueue, 64);
 }
 
 extern "C" PLUGIN_API int StartSession(void) {
@@ -176,6 +179,7 @@ extern "C" PLUGIN_API int StartSession(void) {
         return -1;
 
     ResetSessionTime();
+    g_state.sessionMode.store(g_state.requestedSessionMode.load());
     g_state.stopRequested.store(false);
     g_state.droppedAudioBlocks.store(0);
     g_state.droppedJudgeEvents.store(0);

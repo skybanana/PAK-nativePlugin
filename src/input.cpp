@@ -1,39 +1,25 @@
 #include "input.h"
 
+#include "eventQueue.h"
 #include "plugin_state.h"
 
 #include <cmath>
-#include <mutex>
-
-void prepareGuitarInputQueue(GuitarInputEventQueue *queue, unsigned int eventCount) {
-    // Prepares a fixed event ring for guitar-control input events.
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    queue->events.assign(eventCount, {});
-    queue->readIndex = 0;
-    queue->writeIndex = 0;
-}
 
 void pushGuitarInputEvent(PluginState *state, const GuitarInputEvent &event) {
     // Pushes one detected guitar input for Unity to poll later.
-    GuitarInputEventQueue *queue = &state->guitarInputQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    unsigned int next = (queue->writeIndex + 1) % (unsigned int)queue->events.size();
-    if (next == queue->readIndex)
-        return;
-
-    queue->events[queue->writeIndex] = event;
-    queue->writeIndex = next;
+    PluginEvent output = {};
+    output.type = PluginEvent_GuitarInput;
+    output.guitarInput = event;
+    pushPluginEvent(&state->eventQueue, output);
 }
 
 int pollGuitarInputEvent(PluginState *state, GuitarInputEvent *outEvent) {
     // Pops one pending guitar input event for the Unity-side polling API.
-    GuitarInputEventQueue *queue = &state->guitarInputQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    if (queue->readIndex == queue->writeIndex)
+    PluginEvent event = {};
+    if (!pollPluginEvent(&state->eventQueue, PluginEvent_GuitarInput, &event))
         return 0;
 
-    *outEvent = queue->events[queue->readIndex];
-    queue->readIndex = (queue->readIndex + 1) % (unsigned int)queue->events.size();
+    *outEvent = event.guitarInput;
     return 1;
 }
 
@@ -83,4 +69,16 @@ void finalizePendingGuitarInputs(PluginState *state, double audioTimeMs) {
 
         state->pendingGuitarInputs.erase(state->pendingGuitarInputs.begin() + index);
     }
+}
+
+void processGuitarInputBlock(PluginState *state,
+                             bool hasOnset,
+                             double onsetAudioTimeMs,
+                             double audioTimeMs) {
+    // Handles one analyzed audio block as guitar-control input.
+    if (hasOnset) {
+        state->pendingGuitarInputs.push_back({onsetAudioTimeMs,
+                                              onsetAudioTimeMs + PITCH_SETTLE_MS});
+    }
+    finalizePendingGuitarInputs(state, audioTimeMs);
 }
