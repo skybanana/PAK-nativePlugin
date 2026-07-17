@@ -49,11 +49,15 @@ target_link_libraries(duplexPlugin
 
 # Unity Native Plugin DLL
 add_library(PAKNativePlugin SHARED
+  "src/audioQueue.cpp"
+  "src/audioQueue.h"
   "src/main.cpp"
   "src/main.h"
   "src/plugin_state.h"
   "src/dsp.cpp"
   "src/dsp.h"
+  "src/input.cpp"
+  "src/input.h"
   "src/judge.cpp"
   "src/judge.h"
   "src/ChartParser.cpp"

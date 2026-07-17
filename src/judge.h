@@ -1,18 +1,29 @@
 #pragma once
 
-#include "plugin_state.h"
+#include "audioQueue.h"
+#include "main.h"
 
-void prepareAudioQueue(AudioSpscQueue *queue, unsigned int blockCount, unsigned int sampleCount);
-bool pushAudioBlock(AudioSpscQueue *queue,
-                    MY_TYPE *samples,
-                    unsigned int frames,
-                    unsigned int sampleCount,
-                    double streamTime);
-AudioBlock *frontAudioBlock(AudioSpscQueue *queue);
-void popAudioBlock(AudioSpscQueue *queue);
+#include <mutex>
+#include <vector>
+
+struct PluginState;
+
+struct JudgeEventQueue {
+    std::vector<JudgeEvent> events;
+    unsigned int readIndex;
+    unsigned int writeIndex;
+    std::mutex mutex;
+};
+
+struct PendingJudgment {
+    int noteIndex;
+    double onsetChartTimeMs;
+    double onsetAudioTimeMs;
+    double errorMs;
+    double deadlineChartTimeMs;
+};
+
 void prepareJudgeQueue(JudgeEventQueue *queue, unsigned int eventCount);
 int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent);
-void prepareGuitarInputQueue(GuitarInputEventQueue *queue, unsigned int eventCount);
-int pollGuitarInputEvent(PluginState *state, GuitarInputEvent *outEvent);
 void processJudgmentBlock(PluginState *state, AudioBlock *block);
 void judgeThreadMain(PluginState *state);

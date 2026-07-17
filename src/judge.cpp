@@ -1,5 +1,8 @@
 #include "judge.h"
 
+#include "input.h"
+#include "plugin_state.h"
+
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -10,52 +13,6 @@ const double PERFECT_MS = 60.0;
 const double GOOD_MS = 140.0;
 const double BAD_MS = 240.0;
 const int PITCH_TOLERANCE = 0;
-
-void prepareAudioQueue(AudioSpscQueue *queue, unsigned int blockCount, unsigned int sampleCount) {
-    // Prepares fixed audio blocks for callback-to-judge transfer.
-    queue->blocks.resize(blockCount);
-    for (unsigned int i = 0; i < blockCount; i++) {
-        queue->blocks[i].streamTime = 0.0;
-        queue->blocks[i].frames = 0;
-        queue->blocks[i].samples.assign(sampleCount, 0);
-    }
-    queue->readIndex.store(0);
-    queue->writeIndex.store(0);
-}
-
-bool pushAudioBlock(AudioSpscQueue *queue,
-                    MY_TYPE *samples,
-                    unsigned int frames,
-                    unsigned int sampleCount,
-                    double streamTime) {
-    // Pushes one input buffer from the audio callback to the judge thread.
-    unsigned int write = queue->writeIndex.load(std::memory_order_relaxed);
-    unsigned int next = (write + 1) % (unsigned int)queue->blocks.size();
-    if (next == queue->readIndex.load(std::memory_order_acquire))
-        return false;
-
-    AudioBlock &block = queue->blocks[write];
-    block.streamTime = streamTime;
-    block.frames = frames;
-    memcpy(block.samples.data(), samples, sampleCount * sizeof(MY_TYPE));
-    queue->writeIndex.store(next, std::memory_order_release);
-    return true;
-}
-
-AudioBlock *frontAudioBlock(AudioSpscQueue *queue) {
-    // Returns the next readable audio block for the single judge thread.
-    unsigned int read = queue->readIndex.load(std::memory_order_relaxed);
-    if (read == queue->writeIndex.load(std::memory_order_acquire))
-        return nullptr;
-    return &queue->blocks[read];
-}
-
-void popAudioBlock(AudioSpscQueue *queue) {
-    // Releases the current audio block after judgment work is complete.
-    unsigned int read = queue->readIndex.load(std::memory_order_relaxed);
-    queue->readIndex.store((read + 1) % (unsigned int)queue->blocks.size(),
-                           std::memory_order_release);
-}
 
 void prepareJudgeQueue(JudgeEventQueue *queue, unsigned int eventCount) {
     // Prepares a fixed event ring for the plugin-to-Unity polling API.
@@ -81,38 +38,6 @@ void pushJudgeEvent(PluginState *state, const JudgeEvent &event) {
 int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent) {
     // Pops one pending judge event for the Unity-side polling API.
     JudgeEventQueue *queue = &state->judgeQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    if (queue->readIndex == queue->writeIndex)
-        return 0;
-
-    *outEvent = queue->events[queue->readIndex];
-    queue->readIndex = (queue->readIndex + 1) % (unsigned int)queue->events.size();
-    return 1;
-}
-
-void prepareGuitarInputQueue(GuitarInputEventQueue *queue, unsigned int eventCount) {
-    // Prepares a fixed event ring for guitar-control input events.
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    queue->events.assign(eventCount, {});
-    queue->readIndex = 0;
-    queue->writeIndex = 0;
-}
-
-void pushGuitarInputEvent(PluginState *state, const GuitarInputEvent &event) {
-    // Pushes one detected guitar input for Unity to poll later.
-    GuitarInputEventQueue *queue = &state->guitarInputQueue;
-    std::lock_guard<std::mutex> lock(queue->mutex);
-    unsigned int next = (queue->writeIndex + 1) % (unsigned int)queue->events.size();
-    if (next == queue->readIndex)
-        return;
-
-    queue->events[queue->writeIndex] = event;
-    queue->writeIndex = next;
-}
-
-int pollGuitarInputEvent(PluginState *state, GuitarInputEvent *outEvent) {
-    // Pops one pending guitar input event for the Unity-side polling API.
-    GuitarInputEventQueue *queue = &state->guitarInputQueue;
     std::lock_guard<std::mutex> lock(queue->mutex);
     if (queue->readIndex == queue->writeIndex)
         return 0;
@@ -179,59 +104,11 @@ bool selectPitchObservation(PluginState *state,
     return found;
 }
 
-bool selectGuitarPitchObservation(PluginState *state,
-                                  const PendingGuitarInput &pending,
-                                  PitchObservation *selected) {
-    // Selects the non-zero pitch closest to the guitar input settle deadline.
-    bool found = false;
-    double bestTimeDistance = 1000000.0;
-
-    for (const PitchObservation &observation : state->pitchObservations) {
-        if (observation.audioTimeMs < pending.onsetAudioTimeMs)
-            continue;
-        if (observation.audioTimeMs > pending.deadlineAudioTimeMs)
-            continue;
-        if (observation.midi == 0)
-            continue;
-
-        double timeDistance = std::abs(observation.audioTimeMs - pending.deadlineAudioTimeMs);
-        if (!found || timeDistance < bestTimeDistance) {
-            *selected = observation;
-            bestTimeDistance = timeDistance;
-            found = true;
-        }
-    }
-
-    return found;
-}
-
 void prunePitchObservations(PluginState *state, double chartTimeMs) {
     // Keeps only recent pitch observations needed by pending judgments.
     while (!state->pitchObservations.empty() &&
            state->pitchObservations.front().chartTimeMs < chartTimeMs - 500.0) {
         state->pitchObservations.erase(state->pitchObservations.begin());
-    }
-}
-
-void finalizePendingGuitarInputs(PluginState *state, double audioTimeMs) {
-    // Emits guitar input events after their pitch settle window has closed.
-    size_t index = 0;
-    while (index < state->pendingGuitarInputs.size()) {
-        PendingGuitarInput pending = state->pendingGuitarInputs[index];
-        if (audioTimeMs < pending.deadlineAudioTimeMs) {
-            index++;
-            continue;
-        }
-
-        PitchObservation selected = {};
-        if (selectGuitarPitchObservation(state, pending, &selected)) {
-            GuitarInputEvent event = {};
-            event.midi = selected.midi;
-            event.audioTimeMs = pending.onsetAudioTimeMs;
-            pushGuitarInputEvent(state, event);
-        }
-
-        state->pendingGuitarInputs.erase(state->pendingGuitarInputs.begin() + index);
     }
 }
 

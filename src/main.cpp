@@ -1,6 +1,8 @@
 #include "main.h"
 
+#include "audioQueue.h"
 #include "dsp.h"
+#include "input.h"
 #include "judge.h"
 
 #include <thread>
