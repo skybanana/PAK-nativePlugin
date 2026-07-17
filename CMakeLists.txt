@@ -136,3 +136,9 @@ target_link_libraries(RhythmGameDLL
   PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# DLL 기반 기타 입력 테스트
+add_executable(guitarInputTest
+  "test/guitarInputTest.cpp"
+)
+add_dependencies(guitarInputTest PAKNativePlugin)

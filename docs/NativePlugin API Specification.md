@@ -13,6 +13,8 @@ Unity에서 `PAKNativePlugin.dll`을 호출하기 위한 C API 명세서입니�
 
 ## 호출 순서
 
+### 채보 판정 사용
+
 ```text
 Initialize
   -> LoadChart
@@ -26,8 +28,22 @@ Initialize
   -> Shutdown
 ```
 
+### 기타 입력만 사용
+
+```text
+Initialize
+  -> SetDSPParams
+  -> StartSession
+      -> GetAudioStats 반복 호출
+      -> PollGuitarInputEvent 반복 호출
+  -> StopSession
+  -> Shutdown
+```
+
 `Initialize`는 내부에서 기존 리소스를 먼저 정리한 뒤 새 오디오 스트림을 준비합니다.
 `ResetSessionTime`은 새 세션 시작 전에 내부 시간과 판정 진행 상태를 0부터 다시 시작하도록 초기화합니다.
+`LoadChart`는 채보 판정에만 필요하며, 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
+`StartSession`은 오디오 스트림과 판정 스레드를 시작하므로 `PollJudgeEvent`, `PollGuitarInputEvent`를 사용하기 전에 반드시 호출해야 합니다.
 세션 종료 시에는 `StopSession`을 호출하고, 플러그인을 더 이상 쓰지 않을 때 `Shutdown`을 호출합니다.
 
 ## Unity C# 선언 예시
@@ -227,6 +243,7 @@ int LoadChart(const char *chartPath);
 ```
 
 다음 세션에서 사용할 채보 JSON 파일을 로드합니다.
+기타 입력만 사용할 때는 호출하지 않아도 됩니다.
 
 반환값:
 
@@ -326,7 +343,7 @@ int PollGuitarInputEvent(GuitarInputEvent *outEvent);
 - `0`: 이벤트 없음
 
 채보 판정 이벤트와 독립적으로 동작하므로 Client 조작용 입력에 사용할 수 있습니다.
-채보를 로드하지 않은 상태에서도 오디오 세션이 실행 중이면 polling할 수 있습니다.
+채보를 로드하지 않은 상태에서도 사용할 수 있지만, 이벤트 생성을 위해 `StartSession`으로 오디오 세션을 먼저 시작해야 합니다.
 Unity에서는 MIDI 값을 원하는 동작에 매핑하면 됩니다.
 
 ```csharp
