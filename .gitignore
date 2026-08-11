@@ -39,3 +39,18 @@
 
 # debug information files
 *.dwo
+
+# vspkg 환경분리
+vcpkg_installed/
+
+# Visual Studio Code settings
+.vscode/
+
+# CMake build outputs
+out/
+build/
+cmake-build-*/
+
+# AI
+.agents
+AGENTS.md

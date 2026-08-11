@@ -1,0 +1,52 @@
+Result
+ 1. string 6, fret 0, E2 @ 1.00s -> Miss (wrong note: MIDI 0, target E2)
+ 2. string 6, fret 1, F2 @ 2.00s -> Miss (wrong note: MIDI 0, target F2)
+ 3. string 6, fret 2, F#2 @ 3.00s -> Miss (wrong note: MIDI 0, target F#2)
+ 4. string 6, fret 3, G2 @ 4.00s -> Miss (wrong note: MIDI 0, target G2)
+ 5. string 6, fret 4, G#2 @ 5.00s -> Good (+134.5 ms, G#2)
+ 6. string 6, fret 3, G2 @ 6.00s -> Miss (wrong note: MIDI 0, target G2)
+ 7. string 6, fret 2, F#2 @ 7.00s -> Miss (wrong note: MIDI 0, target F#2)
+ 8. string 6, fret 1, F2 @ 8.00s -> Miss (wrong note: MIDI 0, target F2)
+ 9. string 6, fret 0, E2 @ 9.00s -> Miss (wrong note: MIDI 0, target E2)
+10. string 6, fret 0, E2 @ 10.00s -> Miss (wrong note: MIDI 0, target E2)
+11. string 6, fret 1, F2 @ 11.00s -> Good (-98.0 ms, F2)
+12. string 6, fret 2, F#2 @ 12.00s -> Miss (wrong note: MIDI 41, target F#2)
+13. string 6, fret 3, G2 @ 13.00s -> Miss (wrong note: MIDI 42, target G2)
+14. string 6, fret 4, G#2 @ 14.00s -> Miss (wrong note: MIDI 43, target G#2)
+15. string 6, fret 3, G2 @ 15.00s -> Miss (wrong note: MIDI 44, target G2)
+16. string 6, fret 2, F#2 @ 16.00s -> Miss (wrong note: MIDI 43, target F#2)
+17. string 6, fret 1, F2 @ 17.00s -> Miss (wrong note: MIDI 0, target F2)
+18. string 6, fret 0, E2 @ 18.00s -> Miss (wrong note: MIDI 0, target E2)
+
+SPSC diagnostics
+  pushed blocks       : 8635
+  dropped blocks      : 11
+  judged blocks       : 8635
+  pointer alias blocks: 0
+  changed first sample: 0
+  queue lag ms        : min 0.0, avg 3.3, max 18.7
+
+Pitch at onset diagnostics
+  onset events          : 23
+  accepted onset events : 18
+  outside window events : 5
+  zero MIDI events      : 16
+  wrong MIDI events     : 21
+ 1. onset 931.9 ms, block 944.0 ms, error -68.1 ms, raw 0.0, midi 0/40, wrong
+ 2. onset 2051.8 ms, block 2064.0 ms, error +51.8 ms, raw 0.0, midi 0/41, wrong
+ 3. onset 3069.8 ms, block 3080.0 ms, error +69.8 ms, raw 0.0, midi 0/42, wrong
+ 4. onset 4150.7 ms, block 4162.7 ms, error +150.7 ms, raw 0.0, midi 0/43, wrong
+ 5. onset 5134.5 ms, block 5146.7 ms, error +134.5 ms, raw 43.8, midi 44/44, match
+ 6. onset 6121.1 ms, block 6133.3 ms, error +121.1 ms, raw 0.0, midi 0/43, wrong
+ 7. onset 7054.8 ms, block 7066.7 ms, error +54.8 ms, raw 0.0, midi 0/42, wrong
+ 8. onset 8080.5 ms, block 8090.7 ms, error +80.5 ms, raw 0.0, midi 0/41, wrong
+ 9. onset 9048.5 ms, block 9061.3 ms, error +48.5 ms, raw 0.0, midi 0/40, wrong
+10. onset 10054.6 ms, block 10066.7 ms, error +54.6 ms, raw 0.0, midi 0/40, wrong
+11. onset 10902.0 ms, block 10914.7 ms, error -98.0 ms, raw 40.8, midi 41/41, match
+12. onset 12024.6 ms, block 12037.3 ms, error +24.6 ms, raw 41.2, midi 41/42, wrong
+13. onset 12999.5 ms, block 13010.7 ms, error -0.5 ms, raw 42.3, midi 42/43, wrong
+14. onset 13990.9 ms, block 14002.7 ms, error -9.1 ms, raw 43.1, midi 43/44, wrong
+15. onset 14971.2 ms, block 14984.0 ms, error -28.8 ms, raw 43.8, midi 44/43, wrong
+16. onset 15954.5 ms, block 15965.3 ms, error -45.5 ms, raw 43.1, midi 43/42, wrong
+17. onset 17009.0 ms, block 17021.3 ms, error +9.0 ms, raw 0.0, midi 0/41, wrong
+18. onset 18040.6 ms, block 18053.3 ms, error +40.6 ms, raw 0.0, midi 0/40, wrong
