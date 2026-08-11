@@ -44,7 +44,7 @@
 vcpkg_installed/
 
 # Visual Studio Code settings
-.vscode
+.vscode/
 
 # CMake build outputs
 out/
@@ -53,3 +53,4 @@ cmake-build-*/
 
 # AI
 .agents
+AGENTS.md
