@@ -147,12 +147,12 @@ public static class PakNativePlugin
 
 ## JudgeResult
 
-| 값 | 이름 | 의미 |
-| --- | --- | --- |
-| 0 | `Perfect` | 타이밍 오차가 60 ms 이하이고 피치가 일치 |
-| 1 | `Good` | 타이밍 오차가 140 ms 이하이고 피치가 일치 |
-| 2 | `Bad` | 타이밍 오차가 240 ms 이하이고 피치가 일치 |
-| 3 | `Miss` | 타이밍 범위를 벗어났거나 피치가 불일치 |
+| 값  | 이름      | 의미                                      |
+| --- | --------- | ----------------------------------------- |
+| 0   | `Perfect` | 타이밍 오차가 60 ms 이하이고 피치가 일치  |
+| 1   | `Good`    | 타이밍 오차가 140 ms 이하이고 피치가 일치 |
+| 2   | `Bad`     | 타이밍 오차가 240 ms 이하이고 피치가 일치 |
+| 3   | `Miss`    | 타이밍 범위를 벗어났거나 피치가 불일치    |
 
 피치 판정은 현재 목표 MIDI와 감지 MIDI가 정확히 같아야 통과합니다.
 
@@ -160,19 +160,19 @@ public static class PakNativePlugin
 
 `PollJudgeEvent`로 가져오는 노트 1개의 판정 결과입니다.
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `noteIndex` | `int` | 채보의 노트 인덱스. 0부터 시작 |
-| `result` | `int` | `JudgeResult` 값 |
-| `judgedAudioTimeMs` | `double` | 플러그인 오디오 스트림 기준 판정 시각 |
-| `judgedChartTimeMs` | `double` | 채보 기준 판정 시각 |
-| `errorMs` | `float` | `judgedChartTimeMs - startMs` |
-| `detectedMidi` | `int` | 감지된 MIDI 피치. 피치가 없으면 0 |
-| `targetMidi` | `int` | 채보 노트의 목표 MIDI 피치 |
-| `stringNumber` | `int` | 기타 줄 번호 |
-| `fret` | `int` | 프렛 번호 |
-| `startMs` | `int` | 채보 노트 시작 시각 |
-| `noteName` | `char[16]` | 목표 음 이름. 예: `E2`, `F#3` |
+| 필드                | 타입       | 의미                                  |
+| ------------------- | ---------- | ------------------------------------- |
+| `noteIndex`         | `int`      | 채보의 노트 인덱스. 0부터 시작        |
+| `result`            | `int`      | `JudgeResult` 값                      |
+| `judgedAudioTimeMs` | `double`   | 플러그인 오디오 스트림 기준 판정 시각 |
+| `judgedChartTimeMs` | `double`   | 채보 기준 판정 시각                   |
+| `errorMs`           | `float`    | `judgedChartTimeMs - startMs`         |
+| `detectedMidi`      | `int`      | 감지된 MIDI 피치. 피치가 없으면 0     |
+| `targetMidi`        | `int`      | 채보 노트의 목표 MIDI 피치            |
+| `stringNumber`      | `int`      | 기타 줄 번호                          |
+| `fret`              | `int`      | 프렛 번호                             |
+| `startMs`           | `int`      | 채보 노트 시작 시각                   |
+| `noteName`          | `char[16]` | 목표 음 이름. 예: `E2`, `F#3`         |
 
 ## GuitarInputEvent
 
@@ -181,29 +181,29 @@ public static class PakNativePlugin
 채보 판정과 별개로, 입력 오디오에서 onset이 감지된 뒤 80 ms 피치 안정 구간을 기다리고 MIDI 피치가 확인되면 이벤트가 발생합니다.
 MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `midi` | `int` | 감지된 MIDI 피치 |
+| 필드          | 타입     | 의미                                   |
+| ------------- | -------- | -------------------------------------- |
+| `midi`        | `int`    | 감지된 MIDI 피치                       |
 | `audioTimeMs` | `double` | 플러그인 오디오 스트림 기준 onset 시각 |
 
 ## AudioStats
 
 `GetAudioStats`로 가져오는 현재 세션 상태입니다.
 
-| 필드 | 타입 | 의미 |
-| --- | --- | --- |
-| `streamTime` | `double` | 세션 기준 스트림 시간. 초 단위 |
-| `audioTimeMs` | `double` | 오디오 스트림 시간. ms 단위 |
-| `chartTimeMs` | `double` | 채보 시간. `audioTimeMs - countdownMs` |
-| `countdownMs` | `double` | 세션 시작 전 카운트다운 시간. 현재 5000 |
-| `streamLatency` | `int` | RtAudio 스트림 지연 |
-| `bufferFrames` | `uint` | 내부 오디오 버퍼 프레임 수. 현재 128 |
-| `droppedAudioBlocks` | `uint` | 판정 스레드로 전달하지 못한 오디오 블록 수 |
-| `droppedJudgeEvents` | `uint` | Unity가 늦게 polling해서 버려진 판정 이벤트 수 |
-| `totalNotes` | `int` | 로드된 채보의 전체 노트 수 |
-| `nextNoteIndex` | `int` | 다음 판정 대상 노트 인덱스 |
-| `isRunning` | `int` | 오디오 스트림 실행 중이면 1, 아니면 0 |
-| `isFinished` | `int` | 모든 노트 판정이 끝났으면 1, 아니면 0 |
+| 필드                 | 타입     | 의미                                           |
+| -------------------- | -------- | ---------------------------------------------- |
+| `streamTime`         | `double` | 세션 기준 스트림 시간. 초 단위                 |
+| `audioTimeMs`        | `double` | 오디오 스트림 시간. ms 단위                    |
+| `chartTimeMs`        | `double` | 채보 시간. `audioTimeMs - countdownMs`         |
+| `countdownMs`        | `double` | 세션 시작 전 카운트다운 시간. 현재 5000        |
+| `streamLatency`      | `int`    | RtAudio 스트림 지연                            |
+| `bufferFrames`       | `uint`   | 내부 오디오 버퍼 프레임 수. 현재 128           |
+| `droppedAudioBlocks` | `uint`   | 판정 스레드로 전달하지 못한 오디오 블록 수     |
+| `droppedJudgeEvents` | `uint`   | Unity가 늦게 polling해서 버려진 판정 이벤트 수 |
+| `totalNotes`         | `int`    | 로드된 채보의 전체 노트 수                     |
+| `nextNoteIndex`      | `int`    | 다음 판정 대상 노트 인덱스                     |
+| `isRunning`          | `int`    | 오디오 스트림 실행 중이면 1, 아니면 0          |
+| `isFinished`         | `int`    | 모든 노트 판정이 끝났으면 1, 아니면 0          |
 
 `chartTimeMs`가 0보다 작으면 카운트다운 구간입니다.
 
@@ -223,14 +223,14 @@ int Initialize(
 
 오디오 스트림, DSP 상태, 판정 큐, aubio 피치/온셋 감지기를 초기화합니다.
 
-| 파라미터 | 의미 |
-| --- | --- |
-| `channels` | 입출력 채널 수 |
-| `sampleRate` | 샘플레이트. 예: 48000 |
-| `inputDevice` | 입력 장치 선택. 0이면 기본 입력 장치 |
+| 파라미터       | 의미                                 |
+| -------------- | ------------------------------------ |
+| `channels`     | 입출력 채널 수                       |
+| `sampleRate`   | 샘플레이트. 예: 48000                |
+| `inputDevice`  | 입력 장치 선택. 0이면 기본 입력 장치 |
 | `outputDevice` | 출력 장치 선택. 0이면 기본 출력 장치 |
-| `inputOffset` | 입력 장치의 시작 채널 |
-| `outputOffset` | 출력 장치의 시작 채널 |
+| `inputOffset`  | 입력 장치의 시작 채널                |
+| `outputOffset` | 출력 장치의 시작 채널                |
 
 반환값:
 
@@ -302,11 +302,11 @@ void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
 input gain -> tanh overdrive -> one-pole low-pass filter -> output gain
 ```
 
-| 파라미터 | 의미 | 기본값 |
-| --- | --- | --- |
-| `inputGain` | 입력 게인 | 4.0 |
-| `outputGain` | 출력 게인 | 0.5 |
-| `lpfAlpha` | low-pass filter alpha | 0.2 |
+| 파라미터     | 의미                  | 기본값 |
+| ------------ | --------------------- | ------ |
+| `inputGain`  | 입력 게인             | 4.0    |
+| `outputGain` | 출력 게인             | 0.5    |
+| `lpfAlpha`   | low-pass filter alpha | 0.2    |
 
 ### PollJudgeEvent
 
