@@ -74,7 +74,7 @@ int tickToMs(int tick, double bpm, int resolution, int audioOffsetMs = 0) {
 namespace ChartParser {
 
 bool loadChart(const std::string &path, Chart &chart) {
-    // Parses a v1 chart file into rhythm-game timing and pitch data.
+    // Parses supported chart versions into rhythm-game timing and pitch data.
     std::ifstream file(path);
     if (!file)
         return false;
@@ -82,11 +82,19 @@ bool loadChart(const std::string &path, Chart &chart) {
     nlohmann::json root;
     file >> root;
 
+    // Verifies that this parser can interpret the chart schema version.
+    if (!root.contains("schemaVersion") || !root["schemaVersion"].is_string())
+        return false;
+
+    const std::string schemaVersion = root["schemaVersion"].get<std::string>();
+    if (schemaVersion != "0.1.0" && schemaVersion != "0.2.0")
+        return false;
+
     const nlohmann::json &song = root["song"];
     const nlohmann::json &track = root["track"];
 
     chart = {};
-    chart.schemaVersion = root["schemaVersion"].get<std::string>();
+    chart.schemaVersion = schemaVersion;
     chart.songId = song["songId"].get<std::string>();
     chart.title = song["title"].get<std::string>();
     chart.artist = song["artist"].get<std::string>();
@@ -103,6 +111,35 @@ bool loadChart(const std::string &path, Chart &chart) {
     chart.tuning = track["tuning"].get<std::vector<std::string>>();
 
     for (const nlohmann::json &noteJson : root["notes"]) {
+        if (schemaVersion == "0.2.0" && noteJson["interpretation"] == "chord") {
+            const std::string chordId = noteJson["chordId"].get<std::string>();
+            for (const nlohmann::json &chordJson : track["chordDefinitions"]) {
+                if (chordJson["id"] != chordId)
+                    continue;
+
+                for (const nlohmann::json &fingeringJson : chordJson["fingering"]) {
+                    int fret = fingeringJson["fret"].get<int>();
+                    if (fret < 0)
+                        continue;
+
+                    ChartNote note = {};
+                    note.startTick = noteJson["startTick"].get<int>();
+                    note.durationTick = noteJson["durationTick"].get<int>();
+                    note.stringNumber = fingeringJson["string"].get<int>();
+                    note.fret = fret;
+                    note.finger = fingeringJson["finger"].get<int>();
+                    note.technique = "normal";
+                    note.startMs = tickToMs(note.startTick, chart.bpm, chart.resolution, chart.audioOffsetMs);
+                    note.durationMs = tickToMs(note.durationTick, chart.bpm, chart.resolution);
+                    note.midi = guitarNoteToMidi(chart.tuning, note.stringNumber, note.fret);
+                    note.noteName = midiToNoteName(note.midi);
+                    chart.notes.push_back(note);
+                }
+                break;
+            }
+            continue;
+        }
+
         ChartNote note = {};
         note.startTick = noteJson["startTick"].get<int>();
         note.durationTick = noteJson["durationTick"].get<int>();
