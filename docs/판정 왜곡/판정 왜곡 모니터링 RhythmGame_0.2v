@@ -1,0 +1,57 @@
+[TEST 1]
+Result
+ 1. string 6, fret 0, E2 @ 1.00s -> Miss (wrong note: MIDI 0, target E2)
+ 2. string 6, fret 1, F2 @ 2.00s -> Miss (wrong note: MIDI 40, target F2)
+ 3. string 6, fret 2, F#2 @ 3.00s -> Perfect (+11.9 ms, F#2)
+ 4. string 6, fret 3, G2 @ 4.00s -> Miss (wrong note: MIDI 0, target G2)
+ 5. string 6, fret 4, G#2 @ 5.00s -> Miss (wrong note: MIDI 0, target G#2)
+ 6. string 6, fret 3, G2 @ 6.00s -> Miss (wrong note: MIDI 0, target G2)
+ 7. string 6, fret 2, F#2 @ 7.00s -> Miss (wrong note: MIDI 43, target F#2)
+ 8. string 6, fret 1, F2 @ 8.00s -> Miss (wrong note: MIDI 0, target F2)
+ 9. string 6, fret 0, E2 @ 9.00s -> Perfect (+31.9 ms, E2)
+10. string 6, fret 0, E2 @ 10.00s -> Perfect (+35.4 ms, E2)
+11. string 6, fret 1, F2 @ 11.00s -> Miss (wrong note: MIDI 0, target F2)
+12. string 6, fret 2, F#2 @ 12.00s -> Perfect (-14.8 ms, F#2)
+13. string 6, fret 3, G2 @ 13.00s -> Perfect (-12.4 ms, G2)
+14. string 6, fret 4, G#2 @ 14.00s -> Miss (wrong note: MIDI 43, target G#2)
+15. string 6, fret 3, G2 @ 15.00s -> Miss (wrong note: MIDI 0, target G2)
+16. string 6, fret 2, F#2 @ 16.00s -> Miss (wrong note: MIDI 0, target F#2)
+17. string 6, fret 1, F2 @ 17.00s -> Miss (wrong note: MIDI 42, target F2)
+18. string 6, fret 0, E2 @ 18.00s -> Miss (wrong note: MIDI 0, target E2)
+
+SPSC diagnostics
+  pushed blocks       : 8556
+  dropped blocks      : 8
+  judged blocks       : 8553
+  pointer alias blocks: 0
+  changed first sample: 0
+  queue lag ms        : min 0.0, avg 3.5, max 18.7
+
+[TEST 2]  
+Result
+ 1. string 6, fret 0, E2 @ 1.00s -> Good (+113.0 ms, E2)
+ 2. string 6, fret 1, F2 @ 2.00s -> Miss (wrong note: MIDI 0, target F2)
+ 3. string 6, fret 2, F#2 @ 3.00s -> Miss (wrong note: MIDI 41, target F#2)
+ 4. string 6, fret 3, G2 @ 4.00s -> Perfect (-20.5 ms, G2)
+ 5. string 6, fret 4, G#2 @ 5.00s -> Miss (wrong note: MIDI 43, target G#2)
+ 6. string 6, fret 3, G2 @ 6.00s -> Perfect (-14.0 ms, G2)
+ 7. string 6, fret 2, F#2 @ 7.00s -> Miss (wrong note: MIDI 0, target F#2)
+ 8. string 6, fret 1, F2 @ 8.00s -> Miss (wrong note: MIDI 0, target F2)
+ 9. string 6, fret 0, E2 @ 9.00s -> Miss (wrong note: MIDI 0, target E2)
+10. string 6, fret 0, E2 @ 10.00s -> Miss (wrong note: MIDI 0, target E2)
+11. string 6, fret 1, F2 @ 11.00s -> Miss (wrong note: MIDI 40, target F2)
+12. string 6, fret 2, F#2 @ 12.00s -> Miss (wrong note: MIDI 0, target F#2)
+13. string 6, fret 3, G2 @ 13.00s -> Miss (wrong note: MIDI 42, target G2)
+14. string 6, fret 4, G#2 @ 14.00s -> Miss (wrong note: MIDI 43, target G#2)
+15. string 6, fret 3, G2 @ 15.00s -> Miss (wrong note: MIDI 44, target G2)
+16. string 6, fret 2, F#2 @ 16.00s -> Miss (wrong note: MIDI 0, target F#2)
+17. string 6, fret 1, F2 @ 17.00s -> Miss (wrong note: MIDI 0, target F2)
+18. string 6, fret 0, E2 @ 18.00s -> Miss (wrong note: MIDI 0, target E2)
+
+SPSC diagnostics
+  pushed blocks       : 8612
+  dropped blocks      : 21
+  judged blocks       : 8612
+  pointer alias blocks: 0
+  changed first sample: 0
+  queue lag ms        : min 0.0, avg 3.6, max 21.3

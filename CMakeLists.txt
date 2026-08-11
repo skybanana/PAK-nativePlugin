@@ -22,11 +22,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
 find_package(RtAudio CONFIG REQUIRED)
 find_package(Aubio CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (duplex "test/duplex.cpp")
 
 target_link_libraries(duplex
+  PRIVATE
+    RtAudio::rtaudio
+)
+
+add_executable (duplexDSP "test/duplexDSP.cpp")
+
+target_link_libraries(duplexDSP
   PRIVATE
     RtAudio::rtaudio
 )
@@ -37,6 +45,31 @@ add_library(duplexPlugin SHARED "test/duplexPlugin.cpp")
 target_link_libraries(duplexPlugin
   PRIVATE
     RtAudio::rtaudio
+)
+
+# Unity Native Plugin DLL
+add_library(PAKNativePlugin SHARED
+  "src/audioQueue.cpp"
+  "src/audioQueue.h"
+  "src/eventQueue.cpp"
+  "src/eventQueue.h"
+  "src/main.cpp"
+  "src/main.h"
+  "src/plugin_state.h"
+  "src/dsp.cpp"
+  "src/dsp.h"
+  "src/input.cpp"
+  "src/input.h"
+  "src/judge.cpp"
+  "src/judge.h"
+  "src/ChartParser.cpp"
+)
+
+target_link_libraries(PAKNativePlugin
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
 )
 
 # 설계 의도: DLL을 동적 로드하는 최소 실행 테스트를 별도 타겟으로 제공한다.
@@ -74,3 +107,44 @@ target_link_libraries(duplexTiming
     RtAudio::rtaudio
     Aubio::aubio
 )
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (RhythmGame "test/RhythmGame.cpp" "test/ChartParser.cpp")
+
+target_link_libraries(RhythmGame
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
+)
+
+# 이 프로젝트의 실행 파일에 소스를 추가합니다.
+add_executable (RhythmGame_0.2v
+  "test/RhythmGame_0.2v.cpp"
+  "test/RhythmGame_0.2v.h"
+  "test/ChartParser.cpp"
+)
+
+target_link_libraries(RhythmGame_0.2v
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+    nlohmann_json::nlohmann_json
+)
+
+# DLL 기반 리듬 게임 클라이언트 테스트
+add_executable(RhythmGameDLL
+  "test/RhythmGameDLL.cpp"
+  "test/ChartParser.cpp"
+)
+
+target_link_libraries(RhythmGameDLL
+  PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+# DLL 기반 기타 입력 테스트
+add_executable(guitarInputTest
+  "test/guitarInputTest.cpp"
+)
+add_dependencies(guitarInputTest PAKNativePlugin)
