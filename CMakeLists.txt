@@ -99,6 +99,15 @@ target_link_libraries(duplexChord
     Aubio::aubio
 )
 
+# 입력 시점 기준 Am 코드 판정 테스트
+add_executable (chordTest "test/chordTest.cpp")
+
+target_link_libraries(chordTest
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
+
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (duplexTiming "test/duplexTiming.cpp")
 
