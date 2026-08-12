@@ -9,9 +9,8 @@
 #include <thread>
 #include <vector>
 
+#include "../src/ChartParser.h"
 #include "../src/main.h"
-#include "ChartParser.h"
-
 
 #ifdef _WIN32
 #include <conio.h>
@@ -125,9 +124,13 @@ void printHud(ClientState *state, const AudioStats &stats) {
     if (state->nextNoteIndex < (int)state->chart.notes.size()) {
         const ChartParser::ChartNote &note = state->chart.notes[state->nextNoteIndex];
         double remainSeconds = (note.startMs - stats.chartTimeMs) / 1000.0;
-        std::cout << " | N " << state->nextNoteIndex + 1 << "/" << state->chart.notes.size() << " S"
-                  << note.stringNumber << " F" << note.fret << " " << note.noteName << " "
-                  << makeTimingCue(remainSeconds);
+        std::cout << " | N " << state->nextNoteIndex + 1 << "/" << state->chart.notes.size() << " ";
+        if (note.interpretation == "chord")
+            std::cout << note.noteName << " ";
+        else
+            std::cout << "S" << note.stringNumber << " F" << note.fret << " " << note.noteName
+                      << " ";
+        std::cout << makeTimingCue(remainSeconds);
     } else {
         std::cout << " | N finished";
     }
@@ -142,9 +145,13 @@ void printSummary(ClientState *state) {
     std::cout << "\n\nResult\n";
     for (int i = 0; i < (int)state->chart.notes.size(); i++) {
         const ChartParser::ChartNote &note = state->chart.notes[i];
-        std::cout << std::setw(2) << i + 1 << ". "
-                  << "string " << note.stringNumber << ", fret " << note.fret << ", "
-                  << note.noteName << " @ " << formatSeconds(note.startMs / 1000.0) << " -> "
+        std::cout << std::setw(2) << i + 1 << ". ";
+        if (note.interpretation == "chord")
+            std::cout << note.noteName;
+        else
+            std::cout << "string " << note.stringNumber << ", fret " << note.fret << ", "
+                      << note.noteName;
+        std::cout << " @ " << formatSeconds(note.startMs / 1000.0) << " -> "
                   << state->noteResults[i] << "\n";
     }
     std::cout << std::flush;
@@ -255,7 +262,7 @@ void applyJudgeEvent(ClientState *state, const JudgeEvent &event) {
 
 int main(int argc, char *argv[]) {
     unsigned int channels, fs, oDevice = 0, iDevice = 0, iOffset = 0, oOffset = 0;
-    std::string chartPath = "assets/charts/C_Major_Scale.json";
+    std::string chartPath = "assets/charts/CGAmE.json";
     std::string dllPath = "out/build/ninja-debug/PAKNativePlugin.dll";
 
     // Minimal command-line checking.

@@ -17,6 +17,8 @@ extern "C" {
 constexpr double COUNTDOWN_SECONDS = 5.0;
 constexpr double COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000.0;
 constexpr double PITCH_SETTLE_MS = 80.0;
+constexpr double CHORD_SETTLE_MS = 160.0;
+constexpr unsigned int CHORD_FFT_SIZE = 16384;
 
 enum SessionMode {
     SessionMode_None = 0,
@@ -40,8 +42,11 @@ struct PluginState {
     fvec_t *input;
     fvec_t *pitch;
     fvec_t *onset;
+    fvec_t *chordInput;
+    cvec_t *chordSpectrum;
     aubio_pitch_t *pitchDetector;
     aubio_onset_t *onsetDetector;
+    aubio_fft_t *chordFft;
     std::vector<float> lpfState;
     std::atomic<float> inputGain;
     std::atomic<float> outputGain;

@@ -135,7 +135,7 @@ target_link_libraries(RhythmGame_0.2v
 # DLL 기반 리듬 게임 클라이언트 테스트
 add_executable(RhythmGameDLL
   "test/RhythmGameDLL.cpp"
-  "test/ChartParser.cpp"
+  "src/ChartParser.cpp"
 )
 
 target_link_libraries(RhythmGameDLL

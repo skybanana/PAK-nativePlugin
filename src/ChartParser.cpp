@@ -117,30 +117,33 @@ bool loadChart(const std::string &path, Chart &chart) {
                 if (chordJson["id"] != chordId)
                     continue;
 
+                ChartNote note = {};
+                note.interpretation = "chord";
+                note.startTick = noteJson["startTick"].get<int>();
+                note.durationTick = noteJson["durationTick"].get<int>();
+                note.startMs = tickToMs(note.startTick, chart.bpm, chart.resolution, chart.audioOffsetMs);
+                note.durationMs = tickToMs(note.durationTick, chart.bpm, chart.resolution);
+                note.noteName = chordJson["symbol"].get<std::string>();
+                note.chordId = chordId;
+                note.strumTechnique = noteJson["strumTechnique"].get<std::string>();
+
                 for (const nlohmann::json &fingeringJson : chordJson["fingering"]) {
                     int fret = fingeringJson["fret"].get<int>();
                     if (fret < 0)
                         continue;
 
-                    ChartNote note = {};
-                    note.startTick = noteJson["startTick"].get<int>();
-                    note.durationTick = noteJson["durationTick"].get<int>();
-                    note.stringNumber = fingeringJson["string"].get<int>();
-                    note.fret = fret;
-                    note.finger = fingeringJson["finger"].get<int>();
-                    note.technique = "normal";
-                    note.startMs = tickToMs(note.startTick, chart.bpm, chart.resolution, chart.audioOffsetMs);
-                    note.durationMs = tickToMs(note.durationTick, chart.bpm, chart.resolution);
-                    note.midi = guitarNoteToMidi(chart.tuning, note.stringNumber, note.fret);
-                    note.noteName = midiToNoteName(note.midi);
-                    chart.notes.push_back(note);
+                    int stringNumber = fingeringJson["string"].get<int>();
+                    note.chordMidis.push_back(guitarNoteToMidi(chart.tuning, stringNumber, fret));
                 }
+
+                chart.notes.push_back(note);
                 break;
             }
             continue;
         }
 
         ChartNote note = {};
+        note.interpretation = "single";
         note.startTick = noteJson["startTick"].get<int>();
         note.durationTick = noteJson["durationTick"].get<int>();
         note.stringNumber = noteJson["string"].get<int>();

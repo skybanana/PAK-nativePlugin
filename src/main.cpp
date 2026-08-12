@@ -46,16 +46,25 @@ void releaseAubio(PluginState *state) {
         del_aubio_pitch(state->pitchDetector);
     if (state->onsetDetector)
         del_aubio_onset(state->onsetDetector);
+    if (state->chordFft)
+        del_aubio_fft(state->chordFft);
     if (state->pitch)
         del_fvec(state->pitch);
     if (state->onset)
         del_fvec(state->onset);
+    if (state->chordSpectrum)
+        del_cvec(state->chordSpectrum);
+    if (state->chordInput)
+        del_fvec(state->chordInput);
     if (state->input)
         del_fvec(state->input);
     state->pitchDetector = nullptr;
     state->onsetDetector = nullptr;
+    state->chordFft = nullptr;
     state->pitch = nullptr;
     state->onset = nullptr;
+    state->chordSpectrum = nullptr;
+    state->chordInput = nullptr;
     state->input = nullptr;
 }
 
@@ -80,8 +89,11 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.input = nullptr;
     g_state.pitch = nullptr;
     g_state.onset = nullptr;
+    g_state.chordInput = nullptr;
+    g_state.chordSpectrum = nullptr;
     g_state.pitchDetector = nullptr;
     g_state.onsetDetector = nullptr;
+    g_state.chordFft = nullptr;
     g_state.inputGain.store(4.0f);
     g_state.outputGain.store(0.5f);
     g_state.lpfAlpha.store(0.2f);
@@ -134,8 +146,11 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.input = new_fvec(g_state.bufferFrames);
     g_state.pitch = new_fvec(1);
     g_state.onset = new_fvec(1);
+    g_state.chordInput = new_fvec(CHORD_FFT_SIZE);
+    g_state.chordSpectrum = new_cvec(CHORD_FFT_SIZE);
     g_state.pitchDetector = new_aubio_pitch("default", 2048, g_state.bufferFrames, sampleRate);
     g_state.onsetDetector = new_aubio_onset("default", 1024, g_state.bufferFrames, sampleRate);
+    g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
     aubio_onset_set_threshold(g_state.onsetDetector, 0.3f);
     return 0;
