@@ -1,0 +1,221 @@
+{
+  "schemaVersion": "0.2.0",
+  "song": {
+    "songId": "test(bpm,_chord)",
+    "title": "test(bpm, chord)",
+    "artist": "Unknown",
+    "bpm": 120.0,
+    "resolution": 480,
+    "timeSignature": "4/4",
+    "durationMs": 8000,
+    "audioFile": "test(bpm, chord).wav",
+    "audioOffsetMs": 0
+  },
+  "track": {
+    "trackId": "guitar_normal",
+    "instrument": "guitar",
+    "difficulty": "normal",
+    "tuning": [
+      "E2",
+      "A2",
+      "D3",
+      "G3",
+      "B3",
+      "E4"
+    ],
+    "chordDefinitions": [
+      {
+        "id": "C",
+        "symbol": "C",
+        "fingering": [
+          {
+            "string": 5,
+            "fret": 3,
+            "finger": 0
+          },
+          {
+            "string": 4,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 3,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 2,
+            "fret": 1,
+            "finger": 0
+          },
+          {
+            "string": 1,
+            "fret": 0,
+            "finger": 0
+          }
+        ]
+      },
+      {
+        "id": "G",
+        "symbol": "G",
+        "fingering": [
+          {
+            "string": 6,
+            "fret": 3,
+            "finger": 0
+          },
+          {
+            "string": 5,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 4,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 3,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 2,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 1,
+            "fret": 3,
+            "finger": 0
+          }
+        ]
+      },
+      {
+        "id": "Am",
+        "symbol": "Am",
+        "fingering": [
+          {
+            "string": 5,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 4,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 3,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 2,
+            "fret": 1,
+            "finger": 0
+          },
+          {
+            "string": 1,
+            "fret": 0,
+            "finger": 0
+          }
+        ]
+      },
+      {
+        "id": "E",
+        "symbol": "E",
+        "fingering": [
+          {
+            "string": 6,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 5,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 4,
+            "fret": 2,
+            "finger": 0
+          },
+          {
+            "string": 3,
+            "fret": 1,
+            "finger": 0
+          },
+          {
+            "string": 2,
+            "fret": 0,
+            "finger": 0
+          },
+          {
+            "string": 1,
+            "fret": 0,
+            "finger": 0
+          }
+        ]
+      }
+    ]
+  },
+  "notes": [
+    {
+      "interpretation": "chord",
+      "startTick": 0,
+      "durationTick": 960,
+      "chordId": "C",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 960,
+      "durationTick": 960,
+      "chordId": "C",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 1920,
+      "durationTick": 960,
+      "chordId": "G",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 2880,
+      "durationTick": 960,
+      "chordId": "G",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 3840,
+      "durationTick": 960,
+      "chordId": "Am",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 4800,
+      "durationTick": 960,
+      "chordId": "Am",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 5760,
+      "durationTick": 960,
+      "chordId": "E",
+      "strumTechnique": "down"
+    },
+    {
+      "interpretation": "chord",
+      "startTick": 6720,
+      "durationTick": 960,
+      "chordId": "E",
+      "strumTechnique": "down"
+    }
+  ]
+}

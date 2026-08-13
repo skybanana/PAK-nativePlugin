@@ -65,6 +65,10 @@ add_library(PAKNativePlugin SHARED
   "src/ChartParser.cpp"
 )
 
+if (WIN32)
+  target_sources(PAKNativePlugin PRIVATE "src/PAKNativePlugin.rc")
+endif()
+
 target_link_libraries(PAKNativePlugin
   PRIVATE
     RtAudio::rtaudio
@@ -94,6 +98,15 @@ target_link_libraries(duplexPitch
 add_executable (duplexChord "test/duplexChord.cpp")
 
 target_link_libraries(duplexChord
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
+
+# 입력 시점 기준 Am 코드 판정 테스트
+add_executable (chordTest "test/chordTest.cpp")
+
+target_link_libraries(chordTest
   PRIVATE
     RtAudio::rtaudio
     Aubio::aubio
@@ -135,7 +148,7 @@ target_link_libraries(RhythmGame_0.2v
 # DLL 기반 리듬 게임 클라이언트 테스트
 add_executable(RhythmGameDLL
   "test/RhythmGameDLL.cpp"
-  "test/ChartParser.cpp"
+  "src/ChartParser.cpp"
 )
 
 target_link_libraries(RhythmGameDLL

@@ -13,6 +13,7 @@ struct PendingJudgment {
     double onsetAudioTimeMs;
     double errorMs;
     double deadlineChartTimeMs;
+    std::vector<float> chordSamples;
 };
 
 int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent);

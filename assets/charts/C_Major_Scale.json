@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "0.2.0",
+  "song": {
+    "songId": "c_major_scale",
+    "title": "C Major Scale",
+    "artist": "Unknown",
+    "bpm": 120.0,
+    "resolution": 480,
+    "timeSignature": "4/4",
+    "durationMs": 2000,
+    "audioFile": "C Major Scale.wav",
+    "audioOffsetMs": 0
+  },
+  "track": {
+    "trackId": "guitar_normal",
+    "instrument": "guitar",
+    "difficulty": "normal",
+    "tuning": [
+      "E2",
+      "A2",
+      "D3",
+      "G3",
+      "B3",
+      "E4"
+    ]
+  },
+  "notes": [
+    {
+      "interpretation": "single",
+      "startTick": 0,
+      "durationTick": 240,
+      "string": 5,
+      "fret": 3,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 240,
+      "durationTick": 240,
+      "string": 4,
+      "fret": 0,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 480,
+      "durationTick": 240,
+      "string": 4,
+      "fret": 2,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 720,
+      "durationTick": 240,
+      "string": 4,
+      "fret": 3,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 960,
+      "durationTick": 240,
+      "string": 3,
+      "fret": 0,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 1200,
+      "durationTick": 240,
+      "string": 3,
+      "fret": 2,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 1440,
+      "durationTick": 240,
+      "string": 2,
+      "fret": 0,
+      "finger": 0,
+      "technique": "normal"
+    },
+    {
+      "interpretation": "single",
+      "startTick": 1680,
+      "durationTick": 240,
+      "string": 2,
+      "fret": 1,
+      "finger": 0,
+      "technique": "normal"
+    }
+  ]
+}

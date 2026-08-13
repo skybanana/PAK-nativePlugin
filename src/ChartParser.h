@@ -6,6 +6,7 @@
 namespace ChartParser {
 
 struct ChartNote {
+    std::string interpretation;
     int startTick;
     int durationTick;
     int stringNumber;
@@ -16,6 +17,9 @@ struct ChartNote {
     int midi;
     std::string noteName;
     std::string technique;
+    std::string chordId;
+    std::string strumTechnique;
+    std::vector<int> chordMidis;
 };
 
 struct Chart {

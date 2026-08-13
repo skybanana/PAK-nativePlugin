@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://play-any-key.local/schema/chart-format-v0.2.0.schema.json",
+  "title": "Play Any Key Chart Format v0.2.0",
+  "type": "object",
+  "additionalProperties": false,
+  "$comment": "Play Any Key의 기타 채보 파일 스키마",
+
+  "required": ["schemaVersion", "song", "track", "notes"],
+
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "0.2.0",
+      "$comment": "SemVer 채보 스키마 버전"
+    },
+
+    "song": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "곡 정보와 오디오 파일 연결 정보",
+
+      "required": [
+        "songId",
+        "title",
+        "artist",
+        "bpm",
+        "resolution",
+        "timeSignature",
+        "durationMs",
+        "audioFile",
+        "audioOffsetMs"
+      ],
+
+      "properties": {
+        "songId": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "곡 고유 ID"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "곡 제목"
+        },
+        "artist": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "아티스트 이름"
+        },
+        "bpm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "$comment": "기본 BPM"
+        },
+        "resolution": {
+          "type": "integer",
+          "minimum": 1,
+          "$comment": "4분음표 1박을 몇 tick으로 나눌지 나타내는 값. 예: 480"
+        },
+        "timeSignature": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*/[1-9][0-9]*$",
+          "$comment": "박자 정보. 예: 4/4, 3/4, 6/8"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "$comment": "곡 전체 길이. 밀리초 단위"
+        },
+        "audioFile": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "채보와 연결되는 오디오 파일 경로"
+        },
+        "audioOffsetMs": {
+          "type": "integer",
+          "$comment": "채보의 0 tick과 오디오 시작점 사이의 차이. 밀리초 단위"
+        }
+      }
+    },
+
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "$comment": "연주 파트 정보",
+
+      "required": ["trackId", "instrument", "difficulty", "tuning"],
+
+      "properties": {
+        "trackId": {
+          "type": "string",
+          "minLength": 1,
+          "$comment": "트랙 고유 ID. 예: guitar_easy"
+        },
+        "instrument": {
+          "type": "string",
+          "enum": ["guitar", "bass"],
+          "$comment": "연주 악기 종류"
+        },
+        "difficulty": {
+          "type": "string",
+          "enum": ["easy", "normal", "hard", "expert"],
+          "$comment": "채보 난이도"
+        },
+        "tuning": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-G](#|b)?[0-9]$"
+          },
+          "$comment": "줄 튜닝 정보. 기타는 보통 6번 줄부터 1번 줄 순서로 기록. 예: E2, A2, D3, G3, B3, E4"
+        },
+        "chordDefinitions": {
+          "type": "array",
+          "$comment": "코드 이벤트에서 참조하는 코드 표기와 운지 힌트",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "symbol", "fingering"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "$comment": "코드 이벤트가 참조하는 고유 ID. 예: C_open"
+              },
+              "symbol": {
+                "type": "string",
+                "minLength": 1,
+                "$comment": "UI에 표시할 코드 기호. 예: C, Am7, F#"
+              },
+              "fingering": {
+                "type": "array",
+                "minItems": 1,
+                "$comment": "코드 운지 힌트. fret -1은 뮤트, 0은 개방현",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["string", "fret", "finger"],
+                  "properties": {
+                    "string": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 6,
+                      "$comment": "기타 줄 번호"
+                    },
+                    "fret": {
+                      "type": "integer",
+                      "minimum": -1,
+                      "maximum": 24,
+                      "$comment": "프렛 번호. -1은 뮤트, 0은 개방현"
+                    },
+                    "finger": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 4,
+                      "$comment": "사용 손가락. 0은 없음"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "notes": {
+      "type": "array",
+      "$comment": "연주 이벤트 목록. 각 이벤트는 해석 방식을 명시한다",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "interpretation": {
+            "type": "string",
+            "enum": ["single", "chord"],
+            "$comment": "이벤트 판정 방식. single은 단음, chord는 복수 음 코드로 해석"
+          },
+          "startTick": {
+            "type": "integer",
+            "minimum": 0,
+            "$comment": "노트가 시작되는 tick 위치"
+          },
+          "durationTick": {
+            "type": "integer",
+            "minimum": 0,
+            "$comment": "노트 지속 시간. 단타는 0 또는 짧은 tick 값 사용"
+          },
+          "string": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6,
+            "$comment": "연주할 줄 번호. 기타 기준 1번 줄은 가장 얇은 줄, 6번 줄은 가장 굵은 줄"
+          },
+          "fret": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 24,
+            "$comment": "프렛 번호. 0은 개방현"
+          },
+          "finger": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4,
+            "$comment": "사용 손가락. 0 없음, 1 검지, 2 중지, 3 약지, 4 새끼"
+          },
+          "technique": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "hammer_on",
+              "pull_off",
+              "slide",
+              "bend",
+              "palm_mute",
+              "dead_note"
+            ],
+            "$comment": "연주 주법"
+          },
+          "chordId": {
+            "type": "string",
+            "minLength": 1,
+            "$comment": "track.chordDefinitions의 코드 ID"
+          },
+          "strumTechnique": {
+            "type": "string",
+            "enum": ["down", "up"],
+            "$comment": "코드 스트로크 방향"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "interpretation": { "const": "single" }
+            },
+            "required": [
+              "startTick",
+              "durationTick",
+              "interpretation",
+              "string",
+              "fret",
+              "finger",
+              "technique"
+            ]
+          },
+          {
+            "properties": {
+              "interpretation": { "const": "chord" }
+            },
+            "required": [
+              "startTick",
+              "durationTick",
+              "interpretation",
+              "chordId",
+              "strumTechnique"
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

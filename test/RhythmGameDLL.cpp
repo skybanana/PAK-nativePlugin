@@ -1,7 +1,3 @@
-#include "ChartParser.h"
-
-#include "../src/main.h"
-
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -12,6 +8,9 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "../src/ChartParser.h"
+#include "../src/main.h"
 
 #ifdef _WIN32
 #include <conio.h>
@@ -24,12 +23,8 @@ struct PluginApi {
 #ifdef _WIN32
     HMODULE module;
 #endif
-    int (*Initialize)(unsigned int,
-                      unsigned int,
-                      unsigned int,
-                      unsigned int,
-                      unsigned int,
-                      unsigned int);
+    int (*Initialize)(
+        unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
     int (*LoadChart)(const char *);
     int (*StartSession)(void);
     void (*StopSession)(void);
@@ -88,8 +83,7 @@ std::string makeTimingCue(double remainSeconds) {
         filled = 4;
 
     std::string cue;
-    for (int i = 0; i < 4; i++)
-        cue += i < filled ? "[#]" : "[ ]";
+    for (int i = 0; i < 4; i++) cue += i < filled ? "[#]" : "[ ]";
     return cue;
 }
 
@@ -108,8 +102,7 @@ std::string formatJudgeEvent(const JudgeEvent &event) {
     // Builds one display string from a plugin judge event.
     std::ostringstream text;
     text << judgeResultText(event.result) << " (" << std::showpos << std::fixed
-         << std::setprecision(1) << event.errorMs << std::noshowpos << " ms, "
-         << event.noteName;
+         << std::setprecision(1) << event.errorMs << std::noshowpos << " ms, " << event.noteName;
     if (event.result == JudgeResult_Miss && event.detectedMidi != event.targetMidi)
         text << ", MIDI " << event.detectedMidi << "/" << event.targetMidi;
     text << ")";
@@ -131,16 +124,20 @@ void printHud(ClientState *state, const AudioStats &stats) {
     if (state->nextNoteIndex < (int)state->chart.notes.size()) {
         const ChartParser::ChartNote &note = state->chart.notes[state->nextNoteIndex];
         double remainSeconds = (note.startMs - stats.chartTimeMs) / 1000.0;
-        std::cout << " | N " << state->nextNoteIndex + 1 << "/" << state->chart.notes.size() << " S"
-                  << note.stringNumber << " F" << note.fret << " " << note.noteName << " "
-                  << makeTimingCue(remainSeconds);
+        std::cout << " | N " << state->nextNoteIndex + 1 << "/" << state->chart.notes.size() << " ";
+        if (note.interpretation == "chord")
+            std::cout << note.noteName << " ";
+        else
+            std::cout << "S" << note.stringNumber << " F" << note.fret << " " << note.noteName
+                      << " ";
+        std::cout << makeTimingCue(remainSeconds);
     } else {
         std::cout << " | N finished";
     }
 
-    std::cout << " | Last " << shortenText(state->lastResult, 32) << " | P "
-              << stats.nextNoteIndex << "/" << stats.totalNotes << " DA "
-              << stats.droppedAudioBlocks << " DE " << stats.droppedJudgeEvents << std::flush;
+    std::cout << " | Last " << shortenText(state->lastResult, 32) << " | P " << stats.nextNoteIndex
+              << "/" << stats.totalNotes << " DA " << stats.droppedAudioBlocks << " DE "
+              << stats.droppedJudgeEvents << std::flush;
 }
 
 void printSummary(ClientState *state) {
@@ -148,9 +145,13 @@ void printSummary(ClientState *state) {
     std::cout << "\n\nResult\n";
     for (int i = 0; i < (int)state->chart.notes.size(); i++) {
         const ChartParser::ChartNote &note = state->chart.notes[i];
-        std::cout << std::setw(2) << i + 1 << ". "
-                  << "string " << note.stringNumber << ", fret " << note.fret << ", "
-                  << note.noteName << " @ " << formatSeconds(note.startMs / 1000.0) << " -> "
+        std::cout << std::setw(2) << i + 1 << ". ";
+        if (note.interpretation == "chord")
+            std::cout << note.noteName;
+        else
+            std::cout << "string " << note.stringNumber << ", fret " << note.fret << ", "
+                      << note.noteName;
+        std::cout << " @ " << formatSeconds(note.startMs / 1000.0) << " -> "
                   << state->noteResults[i] << "\n";
     }
     std::cout << std::flush;
@@ -261,7 +262,7 @@ void applyJudgeEvent(ClientState *state, const JudgeEvent &event) {
 
 int main(int argc, char *argv[]) {
     unsigned int channels, fs, oDevice = 0, iDevice = 0, iOffset = 0, oOffset = 0;
-    std::string chartPath = "assets/charts/simple_chromatic_001.json";
+    std::string chartPath = "assets/charts/CGAmE.json";
     std::string dllPath = "out/build/ninja-debug/PAKNativePlugin.dll";
 
     // Minimal command-line checking.
@@ -333,8 +334,7 @@ int main(int argc, char *argv[]) {
             break;
 
         JudgeEvent event = {};
-        while (plugin.PollJudgeEvent(&event))
-            applyJudgeEvent(&state, event);
+        while (plugin.PollJudgeEvent(&event)) applyJudgeEvent(&state, event);
 
         if (stats.chartTimeMs < 0.0) {
             printCountdown(stats.chartTimeMs);

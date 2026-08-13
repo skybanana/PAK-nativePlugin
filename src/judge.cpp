@@ -14,6 +14,9 @@ const double PERFECT_MS = 60.0;
 const double GOOD_MS = 140.0;
 const double BAD_MS = 240.0;
 const int PITCH_TOLERANCE = 0;
+const double CHORD_COVERAGE_THRESHOLD = 0.65;
+const double CHORD_TONE_PRESENCE_RATIO = 0.15;
+const int CHORD_HARMONICS = 6;
 
 void pushJudgeEvent(PluginState *state, const JudgeEvent &event) {
     // Pushes one note judgment for Unity to poll later.
@@ -99,6 +102,86 @@ void prunePitchObservations(PluginState *state, double chartTimeMs) {
     }
 }
 
+bool matchesChord(PluginState *state,
+                  const PendingJudgment &pending,
+                  const ChartParser::ChartNote &note) {
+    // Measures how strongly the captured spectrum supports every target chord pitch class.
+    unsigned int sampleCount = (unsigned int)pending.chordSamples.size();
+    if (sampleCount > CHORD_FFT_SIZE)
+        sampleCount = CHORD_FFT_SIZE;
+
+    for (unsigned int i = 0; i < CHORD_FFT_SIZE; i++)
+        fvec_set_sample(state->chordInput, 0.0f, i);
+
+    const double pi = 3.14159265358979323846;
+    for (unsigned int i = 0; i < sampleCount; i++) {
+        double window = sampleCount > 1
+                            ? 0.5 - 0.5 * std::cos(2.0 * pi * i / (sampleCount - 1))
+                            : 1.0;
+        fvec_set_sample(state->chordInput, pending.chordSamples[i] * (float)window, i);
+    }
+    aubio_fft_do(state->chordFft, state->chordInput, state->chordSpectrum);
+
+    bool expectedPitchClasses[12] = {};
+    int minimumMidi = 127;
+    int maximumMidi = 0;
+    for (int midi : note.chordMidis) {
+        expectedPitchClasses[midi % 12] = true;
+        if (midi < minimumMidi)
+            minimumMidi = midi;
+        if (midi > maximumMidi)
+            maximumMidi = midi;
+    }
+
+    double chroma[12] = {};
+    for (int midi = minimumMidi - 12; midi <= maximumMidi + 12; midi++) {
+        double fundamental = 440.0 * std::pow(2.0, (midi - 69) / 12.0);
+        double salience = 0.0;
+
+        for (int harmonic = 1; harmonic <= CHORD_HARMONICS; harmonic++) {
+            double frequency = fundamental * harmonic;
+            if (frequency >= state->sampleRate * 0.5)
+                break;
+
+            int centerBin = (int)std::round(frequency * CHORD_FFT_SIZE / state->sampleRate);
+            for (int offset = -2; offset <= 2; offset++) {
+                int bin = centerBin + offset;
+                if (bin < 1 || bin >= (int)state->chordSpectrum->length)
+                    continue;
+
+                double magnitude = cvec_norm_get_sample(state->chordSpectrum, bin);
+                salience += magnitude * magnitude / harmonic;
+            }
+        }
+
+        chroma[midi % 12] += salience;
+    }
+
+    double totalEnergy = 0.0;
+    double targetEnergy = 0.0;
+    double strongestPitchClass = 0.0;
+    for (int pitchClass = 0; pitchClass < 12; pitchClass++) {
+        totalEnergy += chroma[pitchClass];
+        if (expectedPitchClasses[pitchClass])
+            targetEnergy += chroma[pitchClass];
+        if (chroma[pitchClass] > strongestPitchClass)
+            strongestPitchClass = chroma[pitchClass];
+    }
+
+    if (totalEnergy == 0.0)
+        return false;
+    if (targetEnergy / totalEnergy < CHORD_COVERAGE_THRESHOLD)
+        return false;
+
+    for (int pitchClass = 0; pitchClass < 12; pitchClass++) {
+        if (expectedPitchClasses[pitchClass] &&
+            chroma[pitchClass] < strongestPitchClass * CHORD_TONE_PRESENCE_RATIO) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
     // Emits delayed judge events after their pitch window has closed.
     size_t index = 0;
@@ -111,9 +194,15 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
 
         const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
         PitchObservation selected = {};
-        bool hasPitch = selectPitchObservation(state, pending, &selected);
-        int detectedMidi = hasPitch ? selected.midi : 0;
-        bool pitchMatched = std::abs(detectedMidi - note.midi) <= PITCH_TOLERANCE;
+        bool pitchMatched = false;
+        int detectedMidi = 0;
+        if (note.interpretation == "chord") {
+            pitchMatched = matchesChord(state, pending, note);
+        } else {
+            bool hasPitch = selectPitchObservation(state, pending, &selected);
+            detectedMidi = hasPitch ? selected.midi : 0;
+            pitchMatched = std::abs(detectedMidi - note.midi) <= PITCH_TOLERANCE;
+        }
         const char *timingResult = judgeTiming(std::abs(pending.errorMs));
 
         JudgeEvent event;
@@ -192,14 +281,25 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
         double absErrorMs = std::abs(errorMs);
 
         if (absErrorMs <= BAD_MS) {
+            double settleMs = note.interpretation == "chord" ? CHORD_SETTLE_MS : PITCH_SETTLE_MS;
             state->pendingJudgments.push_back({noteIndex,
                                                onsetChartTimeMs,
                                                onsetAudioTimeMs,
                                                errorMs,
-                                               onsetChartTimeMs + PITCH_SETTLE_MS});
+                                               onsetChartTimeMs + settleMs,
+                                               {}});
             noteIndex++;
             state->nextNoteIndex.store(noteIndex);
         }
+    }
+
+    for (PendingJudgment &pending : state->pendingJudgments) {
+        const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
+        if (note.interpretation != "chord")
+            continue;
+
+        for (unsigned int i = 0; i < block->frames; i++)
+            pending.chordSamples.push_back(fvec_get_sample(state->input, i));
     }
 
     finalizePendingJudgments(state, chartTimeMs);
