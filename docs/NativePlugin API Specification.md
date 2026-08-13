@@ -10,6 +10,7 @@ Unity에서 `PAKNativePlugin.dll`을 호출하기 위한 C API 명세서입니�
 - 오디오 샘플 포맷: signed 16-bit PCM
 - 내부 버퍼 크기: 128 frames
 - 세션 시작 전 카운트다운: 5000 ms
+- 지원 채보 버전: `0.1.0`, `0.2.0`
 
 ## 호출 순서
 
@@ -107,6 +108,9 @@ public static class PakNativePlugin
     }
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern string GetPluginVersion();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int Initialize(
         uint channels,
         uint sampleRate,
@@ -154,7 +158,35 @@ public static class PakNativePlugin
 | 2   | `Bad`     | 타이밍 오차가 240 ms 이하이고 피치가 일치 |
 | 3   | `Miss`    | 타이밍 범위를 벗어났거나 피치가 불일치    |
 
-피치 판정은 현재 목표 MIDI와 감지 MIDI가 정확히 같아야 통과합니다.
+`single` 이벤트의 피치 판정은 목표 MIDI와 감지 MIDI가 정확히 같아야 통과합니다.
+`chord` 이벤트는 아래의 CG-HCM 코드 판정 결과가 일치해야 통과합니다.
+
+## 채보 interpretation과 코드 판정
+
+`schemaVersion: "0.2.0"`의 각 `notes` 이벤트는 `interpretation`으로 판정 방식을 지정합니다.
+
+| `interpretation` | 채보 필수 정보 | 판정 방식 | 플러그인 이벤트 수 |
+| ---------------- | -------------- | --------- | ------------------ |
+| `single` | `string`, `fret`, `finger`, `technique` | aubio MIDI 피치 판정 | 노트당 1개 |
+| `chord` | `chordId`, `strumTechnique` | CG-HCM 코드 판정 | 코드 이벤트당 1개 |
+
+`chordId`는 `track.chordDefinitions`의 `id`를 참조합니다. 플러그인은 해당 코드의 `fingering`과 `track.tuning`으로 실제 MIDI 음 목록을 계산합니다. 뮤트(`fret: -1`) 줄은 코드 판정 대상에서 제외합니다.
+
+코드는 운지된 줄마다 단음 이벤트로 분리되지 않습니다. 하나의 chord 이벤트가 하나의 판정 대상이며, `noteName`에는 코드 기호(`chordDefinitions[].symbol`)가 담깁니다.
+
+### CG-HCM: Chart-Guided Harmonic Chroma Matching
+
+CG-HCM은 채보가 요구하는 코드가 입력 스펙트럼에 포함됐는지 확인하는 방식입니다. 코드 자체를 전체 후보 중에서 새로 분류하지 않습니다.
+
+1. 코드 onset 뒤 160 ms 동안 모노 입력 샘플을 수집합니다.
+2. Hann window와 16,384-point FFT를 적용합니다.
+3. 채보 운지 MIDI와 인접 옥타브에서 기본음 및 최대 6개 배음의 에너지를 계산합니다.
+4. 에너지를 12개 pitch class chroma로 합산합니다.
+5. 목표 코드톤 chroma 에너지 비율이 0.65 이상이고, 모든 목표 pitch class가 최강 pitch class 에너지의 15% 이상이면 일치로 판정합니다.
+
+160 ms 수집 구간은 스트럼에서 줄마다 소리가 나는 시점 차이를 반영합니다. 따라서 다음 코드 onset이 160 ms 이내에 들어오면 두 스트럼의 스펙트럼이 겹쳐 판정이 흔들릴 수 있습니다.
+
+현재 방식은 일반 스트럼과 컷팅에서 실험 중입니다. 팜뮤트는 배음과 지속 시간이 줄어들어 인식률이 낮을 수 있으며, 빠른 연속 스트럼 및 코드 교체도 별도 실험이 필요합니다.
 
 ## JudgeEvent
 
@@ -167,12 +199,14 @@ public static class PakNativePlugin
 | `judgedAudioTimeMs` | `double`   | 플러그인 오디오 스트림 기준 판정 시각 |
 | `judgedChartTimeMs` | `double`   | 채보 기준 판정 시각                   |
 | `errorMs`           | `float`    | `judgedChartTimeMs - startMs`         |
-| `detectedMidi`      | `int`      | 감지된 MIDI 피치. 피치가 없으면 0     |
-| `targetMidi`        | `int`      | 채보 노트의 목표 MIDI 피치            |
-| `stringNumber`      | `int`      | 기타 줄 번호                          |
-| `fret`              | `int`      | 프렛 번호                             |
+| `detectedMidi`      | `int`      | `single`: 감지 MIDI. 감지되지 않으면 0 / `chord`: 0 (사용 안 함) |
+| `targetMidi`        | `int`      | `single`: 목표 MIDI / `chord`: 0 (사용 안 함) |
+| `stringNumber`      | `int`      | `single`: 기타 줄 번호 / `chord`: 0 (사용 안 함) |
+| `fret`              | `int`      | `single`: 프렛 번호 / `chord`: 0 (사용 안 함) |
 | `startMs`           | `int`      | 채보 노트 시작 시각                   |
-| `noteName`          | `char[16]` | 목표 음 이름. 예: `E2`, `F#3`         |
+| `noteName`          | `char[16]` | `single`: 목표 음 이름. 예: `E2`, `F#3` / `chord`: 코드 기호. 예: `C`, `Am7` |
+
+`chord` 이벤트에 대해 `detectedMidi`와 `targetMidi`를 비교하면 안 됩니다. 두 필드는 0이므로, 예를 들어 `MIDI 48/0`은 코드의 목표 MIDI가 0이라는 뜻이지 입력이 없었다는 뜻은 아닙니다.
 
 ## GuitarInputEvent
 
@@ -208,6 +242,17 @@ MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
 `chartTimeMs`가 0보다 작으면 카운트다운 구간입니다.
 
 ## Functions
+
+### GetPluginVersion
+
+```c
+const char *GetPluginVersion(void);
+```
+
+로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
+초기화 전후와 관계없이 호출할 수 있습니다.
+
+현재 반환값은 `"1.0.0"`입니다.
 
 ### Initialize
 
@@ -253,6 +298,18 @@ int LoadChart(const char *chartPath);
 
 채보는 `schemaVersion`, `song`, `track`, `notes` 구조를 사용합니다.
 노트의 `startTick`은 BPM과 resolution을 기준으로 ms로 변환됩니다.
+
+`0.2.0` chord 이벤트 예시:
+
+```json
+{
+  "interpretation": "chord",
+  "startTick": 480,
+  "durationTick": 480,
+  "chordId": "C_open",
+  "strumTechnique": "down"
+}
+```
 
 ### ResetSessionTime
 

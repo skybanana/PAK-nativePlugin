@@ -17,6 +17,11 @@ static RtAudio *g_adac = nullptr;
 static PluginState g_state = {};
 static std::thread g_judgeThread;
 
+extern "C" PLUGIN_API const char *GetPluginVersion(void) {
+    // Returns the version of the loaded native plugin.
+    return "1.0.0";
+}
+
 int inoutRhythmGame(void *outputBuffer,
                     void *inputBuffer,
                     unsigned int nBufferFrames,

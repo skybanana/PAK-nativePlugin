@@ -65,6 +65,10 @@ add_library(PAKNativePlugin SHARED
   "src/ChartParser.cpp"
 )
 
+if (WIN32)
+  target_sources(PAKNativePlugin PRIVATE "src/PAKNativePlugin.rc")
+endif()
+
 target_link_libraries(PAKNativePlugin
   PRIVATE
     RtAudio::rtaudio

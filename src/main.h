@@ -58,6 +58,9 @@ struct AudioStats {
 extern "C" {
 #endif
 
+// Returns the native plugin version string.
+PLUGIN_API const char *GetPluginVersion(void);
+
 // Initializes the audio stream and plugin state.
 PLUGIN_API int Initialize(unsigned int channels,
                           unsigned int sampleRate,
