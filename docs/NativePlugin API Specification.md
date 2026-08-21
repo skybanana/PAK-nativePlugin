@@ -107,6 +107,16 @@ public static class PakNativePlugin
         public int isFinished;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct SongSyncInfo
+    {
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string audioFile;
+        public int audioOffsetMs;
+        public int durationMs;
+        public double songTimeMs;
+    }
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern string GetPluginVersion();
 
@@ -143,6 +153,9 @@ public static class PakNativePlugin
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int GetAudioStats(out AudioStats outStats);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetSongSyncInfo(out SongSyncInfo outInfo);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void Shutdown();
@@ -252,7 +265,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"1.0.0"`입니다.
+현재 반환값은 `"0.1.0"`입니다.
 
 ### Initialize
 
@@ -428,6 +441,30 @@ int GetAudioStats(AudioStats *outStats);
 - `0`: 성공
 - `-1`: 초기화되지 않음
 
+### GetSongSyncInfo
+
+```c
+int GetSongSyncInfo(SongSyncInfo *outInfo);
+```
+
+로드된 채보의 곡 파일과 네이티브 오디오 시계에 동기화된 재생 시각을 가져옵니다.
+곡 파일의 실제 재생은 Unity `AudioSource`가 담당합니다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `audioFile` | `char[260]` | 채보 `song.audioFile` 경로 |
+| `audioOffsetMs` | `int` | 채보 tick 변환에 사용된 `song.audioOffsetMs` |
+| `durationMs` | `int` | 채보에 기록된 곡 길이 |
+| `songTimeMs` | `double` | 곡 시작 기준 재생 시각. 카운트다운 중에는 음수 |
+
+`songTimeMs >= 0`가 되는 첫 프레임에 `AudioSource.Play()`를 호출합니다. 이후 재생 위치를
+`songTimeMs / 1000.0`에 맞추면 Unity 프레임 지연으로 생긴 시작 오차를 보정할 수 있습니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 초기화되지 않았거나 채보가 로드되지 않음
+
 ### Shutdown
 
 ```c
@@ -461,6 +498,30 @@ void Update()
     }
 }
 ```
+
+## Unity 곡 재생 동기화 예시
+
+```csharp
+bool songStarted;
+
+void Update()
+{
+    if (PakNativePlugin.GetSongSyncInfo(out var song) != 0)
+        return;
+
+    if (!songStarted && song.songTimeMs >= 0.0)
+    {
+        audioSource.Play();
+        songStarted = true;
+    }
+
+    if (songStarted)
+        audioSource.time = (float)(song.songTimeMs / 1000.0);
+}
+```
+
+`audioSource`에는 `song.audioFile`에 해당하는 `AudioClip`을 미리 연결합니다. `audioOffsetMs`는
+채보 노트 시각에 이미 반영되어 있으므로 `AudioSource.time`에 별도로 더하거나 빼지 않습니다.
 
 ## Unity 기타 입력 루프 예시
 

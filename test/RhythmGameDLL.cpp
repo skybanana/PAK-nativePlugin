@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -17,6 +18,8 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <mmsystem.h>
+#pragma comment(lib, "winmm.lib")
 #endif
 
 struct PluginApi {
@@ -31,6 +34,7 @@ struct PluginApi {
     void (*SetDSPParams)(float, float, float);
     int (*PollJudgeEvent)(JudgeEvent *);
     int (*GetAudioStats)(AudioStats *);
+    int (*GetSongSyncInfo)(SongSyncInfo *);
     void (*Shutdown)(void);
 };
 
@@ -140,6 +144,52 @@ void printHud(ClientState *state, const AudioStats &stats) {
               << stats.droppedJudgeEvents << std::flush;
 }
 
+bool openSong(const std::string &songPath) {
+    // Opens an MP3 file for the Windows test player.
+#ifdef _WIN32
+    std::string command = "open \"" + songPath + "\" type mpegvideo alias rhythmSong";
+    if (mciSendStringA(command.c_str(), nullptr, 0, nullptr) != 0)
+        return false;
+    return mciSendStringA("set rhythmSong time format milliseconds", nullptr, 0, nullptr) == 0;
+#else
+    (void)songPath;
+    return false;
+#endif
+}
+
+bool seekAndPlaySong(double songTimeMs) {
+    // Seeks the test player to the native session position and starts playback.
+#ifdef _WIN32
+    int positionMs = (int)std::max(songTimeMs, 0.0);
+    std::string seekCommand = "seek rhythmSong to " + std::to_string(positionMs);
+    if (mciSendStringA(seekCommand.c_str(), nullptr, 0, nullptr) != 0)
+        return false;
+    return mciSendStringA("play rhythmSong", nullptr, 0, nullptr) == 0;
+#else
+    (void)songTimeMs;
+    return false;
+#endif
+}
+
+int getSongPositionMs(void) {
+    // Reads the current playback position from the Windows test player.
+#ifdef _WIN32
+    char response[32] = {};
+    if (mciSendStringA("status rhythmSong position", response, sizeof(response), nullptr) != 0)
+        return -1;
+    return atoi(response);
+#else
+    return -1;
+#endif
+}
+
+void closeSong(void) {
+    // Stops and closes the Windows test player.
+#ifdef _WIN32
+    mciSendStringA("close rhythmSong", nullptr, 0, nullptr);
+#endif
+}
+
 void printSummary(ClientState *state) {
     // Prints every plugin judgment after the chart is finished.
     std::cout << "\n\nResult\n";
@@ -160,7 +210,7 @@ void printSummary(ClientState *state) {
 void usage(void) {
     // Command-line usage for the DLL-backed rhythm game test.
     std::cout << "\nuseage: RhythmGameDLL N fs <iDevice> <oDevice> <iChannelOffset> "
-                 "<oChannelOffset> <chartPath> <dllPath>\n";
+                 "<oChannelOffset> <chartPath> <dllPath> <songPath>\n";
     std::cout << "    where N = number of channels,\n";
     std::cout << "    fs = the sample rate,\n";
     std::cout << "    iDevice = optional input device index to use (default = 0),\n";
@@ -168,7 +218,8 @@ void usage(void) {
     std::cout << "    iChannelOffset = an optional input channel offset (default = 0),\n";
     std::cout << "    oChannelOffset = optional output channel offset (default = 0),\n";
     std::cout << "    chartPath = optional chart json path,\n";
-    std::cout << "    and dllPath = optional PAKNativePlugin.dll path.\n\n";
+    std::cout << "    dllPath = optional PAKNativePlugin.dll path,\n";
+    std::cout << "    and songPath = optional MP3 path for playback verification.\n\n";
     exit(0);
 }
 
@@ -226,6 +277,8 @@ bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
         return false;
     if (!loadPluginFunction(plugin, "GetAudioStats", &plugin->GetAudioStats))
         return false;
+    if (!loadPluginFunction(plugin, "GetSongSyncInfo", &plugin->GetSongSyncInfo))
+        return false;
     if (!loadPluginFunction(plugin, "Shutdown", &plugin->Shutdown))
         return false;
 
@@ -262,11 +315,12 @@ void applyJudgeEvent(ClientState *state, const JudgeEvent &event) {
 
 int main(int argc, char *argv[]) {
     unsigned int channels, fs, oDevice = 0, iDevice = 0, iOffset = 0, oOffset = 0;
-    std::string chartPath = "assets/charts/CGAmE.json";
+    std::string chartPath = "assets/charts/PAK - Night.json";
     std::string dllPath = "out/build/ninja-debug/PAKNativePlugin.dll";
+    std::string songPath = "assets/songs/PAK - Night.mp3";
 
     // Minimal command-line checking.
-    if (argc < 3 || argc > 9)
+    if (argc < 3 || argc > 10)
         usage();
 
     channels = (unsigned int)atoi(argv[1]);
@@ -283,6 +337,8 @@ int main(int argc, char *argv[]) {
         chartPath = argv[7];
     if (argc > 8)
         dllPath = argv[8];
+    if (argc > 9)
+        songPath = argv[9];
 
     ClientState state = {};
     state.lastResult = "Waiting";
@@ -303,6 +359,11 @@ int main(int argc, char *argv[]) {
     }
 
     int result = 0;
+    SongSyncInfo songInfo = {};
+    std::filesystem::path chartAudioPath;
+    std::filesystem::path playbackPath;
+    bool songStarted = false;
+    std::chrono::steady_clock::time_point lastSyncCheck = {};
     if (plugin.Initialize(channels, fs, iDevice, oDevice, iOffset, oOffset) != 0) {
         std::cout << "Plugin Initialize failed." << std::endl;
         result = 1;
@@ -315,11 +376,34 @@ int main(int argc, char *argv[]) {
         goto cleanup;
     }
 
+    if (plugin.GetSongSyncInfo(&songInfo) != 0) {
+        std::cout << "Plugin GetSongSyncInfo failed." << std::endl;
+        result = 1;
+        goto cleanup;
+    }
+
+    chartAudioPath = songInfo.audioFile;
+    playbackPath = songPath;
+    if (chartAudioPath.stem() != playbackPath.stem() || !std::filesystem::exists(playbackPath)) {
+        std::cout << "Song file does not match the loaded chart: " << songInfo.audioFile << " / "
+                  << songPath << std::endl;
+        result = 1;
+        goto cleanup;
+    }
+
+    if (!openSong(songPath)) {
+        std::cout << "Failed to open song: " << songPath << std::endl;
+        result = 1;
+        goto cleanup;
+    }
+
     plugin.SetDSPParams(4.0f, 0.5f, 0.2f);
 
     std::cout << "\nLoaded client chart: " << state.chart.title << " / " << state.chart.difficulty
               << "\n";
     std::cout << "Loaded plugin DLL : " << dllPath << "\n";
+    std::cout << "Chart audio       : " << songInfo.audioFile << "\n";
+    std::cout << "Playback file     : " << songPath << "\n";
     std::cout << "Running ... press <enter> to quit.\n";
 
     if (plugin.StartSession() != 0) {
@@ -328,10 +412,38 @@ int main(int argc, char *argv[]) {
         goto cleanup;
     }
 
+    lastSyncCheck = std::chrono::steady_clock::now();
     while (!enterPressed()) {
         AudioStats stats = {};
         if (plugin.GetAudioStats(&stats) != 0)
             break;
+
+        if (plugin.GetSongSyncInfo(&songInfo) != 0)
+            break;
+
+        if (!songStarted && songInfo.songTimeMs >= 0.0) {
+            if (!seekAndPlaySong(songInfo.songTimeMs)) {
+                std::cout << "\nFailed to start song playback." << std::endl;
+                result = 1;
+                break;
+            }
+            songStarted = true;
+            std::cout << "\nSong started at " << (int)songInfo.songTimeMs << " ms.\n";
+        }
+
+        auto now = std::chrono::steady_clock::now();
+        if (songStarted && now - lastSyncCheck >= std::chrono::milliseconds(500)) {
+            int playbackTimeMs = getSongPositionMs();
+            int syncErrorMs = playbackTimeMs - (int)songInfo.songTimeMs;
+            std::cout << "\nSong sync: native " << (int)songInfo.songTimeMs << " ms, playback "
+                      << playbackTimeMs << " ms, error " << syncErrorMs << " ms";
+            if (std::abs(syncErrorMs) > 100) {
+                seekAndPlaySong(songInfo.songTimeMs);
+                std::cout << " (corrected)";
+            }
+            std::cout << std::flush;
+            lastSyncCheck = now;
+        }
 
         JudgeEvent event = {};
         while (plugin.PollJudgeEvent(&event)) applyJudgeEvent(&state, event);
@@ -351,6 +463,7 @@ int main(int argc, char *argv[]) {
 
 cleanup:
     std::cout << std::endl;
+    closeSong();
     if (plugin.StopSession)
         plugin.StopSession();
     if (plugin.Shutdown)

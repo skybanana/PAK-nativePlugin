@@ -54,6 +54,18 @@ struct AudioStats {
     int isFinished;
 };
 
+struct SongSyncInfo {
+    // Audio path declared by the loaded chart.
+    char audioFile[260];
+    // Chart audio offset used when converting ticks to chart time.
+    int audioOffsetMs;
+    // Declared song duration.
+    int durationMs;
+    // Playback position relative to the beginning of the song audio.
+    // A negative value means the pre-song countdown is still in progress.
+    double songTimeMs;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -92,6 +104,9 @@ PLUGIN_API int PollGuitarInputEvent(GuitarInputEvent *outEvent);
 
 // Copies current audio and judgment progress stats.
 PLUGIN_API int GetAudioStats(AudioStats *outStats);
+
+// Copies the loaded song path and the playback time synchronized to the session clock.
+PLUGIN_API int GetSongSyncInfo(SongSyncInfo *outInfo);
 
 // Releases all plugin resources.
 PLUGIN_API void Shutdown(void);

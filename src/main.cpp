@@ -1,15 +1,16 @@
 #include "main.h"
 
+#include <cstring>
+#include <thread>
+#include <vector>
+
+#include "RtAudio.h"
 #include "audioQueue.h"
 #include "dsp.h"
 #include "eventQueue.h"
 #include "input.h"
 #include "judge.h"
 
-#include <thread>
-#include <vector>
-
-#include "RtAudio.h"
 
 #define FORMAT RTAUDIO_SINT16
 
@@ -19,7 +20,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "1.0.0";
+    return "0.1.0";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -256,6 +257,20 @@ extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {
     outStats->nextNoteIndex = g_state.nextNoteIndex.load();
     outStats->isRunning = g_adac->isStreamRunning() ? 1 : 0;
     outStats->isFinished = g_state.summaryFinished.load() ? 1 : 0;
+    return 0;
+}
+
+extern "C" PLUGIN_API int GetSongSyncInfo(SongSyncInfo *outInfo) {
+    // Returns the chart song and its position on the plugin session clock.
+    if (g_adac == nullptr || g_state.chart.audioFile.empty())
+        return -1;
+
+    *outInfo = {};
+    std::strncpy(
+        outInfo->audioFile, g_state.chart.audioFile.c_str(), sizeof(outInfo->audioFile) - 1);
+    outInfo->audioOffsetMs = g_state.chart.audioOffsetMs;
+    outInfo->durationMs = g_state.chart.durationMs;
+    outInfo->songTimeMs = g_state.lastStreamTime.load() * 1000.0 - COUNTDOWN_MS;
     return 0;
 }
 
