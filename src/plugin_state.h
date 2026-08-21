@@ -48,6 +48,9 @@ struct PluginState {
     aubio_onset_t *onsetDetector;
     aubio_fft_t *chordFft;
     std::vector<float> lpfState;
+    std::vector<MY_TYPE> songSamples;
+    unsigned int songChannels;
+    unsigned long long songFrames;
     std::atomic<float> inputGain;
     std::atomic<float> outputGain;
     std::atomic<float> lpfAlpha;

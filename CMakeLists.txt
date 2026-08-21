@@ -22,6 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
 find_package(RtAudio CONFIG REQUIRED)
 find_package(Aubio CONFIG REQUIRED)
+find_package(mpg123 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
@@ -56,6 +57,8 @@ add_library(PAKNativePlugin SHARED
   "src/main.cpp"
   "src/main.h"
   "src/plugin_state.h"
+  "src/song.cpp"
+  "src/song.h"
   "src/dsp.cpp"
   "src/dsp.h"
   "src/input.cpp"
@@ -73,6 +76,7 @@ target_link_libraries(PAKNativePlugin
   PRIVATE
     RtAudio::rtaudio
     Aubio::aubio
+    MPG123::libmpg123
     nlohmann_json::nlohmann_json
 )
 

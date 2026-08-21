@@ -10,7 +10,7 @@
 #include "eventQueue.h"
 #include "input.h"
 #include "judge.h"
-
+#include "song.h"
 
 #define FORMAT RTAUDIO_SINT16
 
@@ -20,7 +20,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.1.0";
+    return "0.1.1";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -42,7 +42,7 @@ int inoutRhythmGame(void *outputBuffer,
     state->lastStreamTime.store(sessionStreamTime);
     if (!pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, sessionStreamTime))
         state->droppedAudioBlocks.fetch_add(1);
-    processMonitorDsp(state, output, input, nBufferFrames);
+    processMonitorDsp(state, output, input, nBufferFrames, sessionStreamTime);
     return 0;
 }
 
@@ -109,6 +109,9 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
     g_state.lpfState.assign(channels, 0.0f);
+    g_state.songSamples.clear();
+    g_state.songChannels = 0;
+    g_state.songFrames = 0;
     g_state.pitchObservations.clear();
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
@@ -159,12 +162,18 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
     aubio_onset_set_threshold(g_state.onsetDetector, 0.3f);
+    if (!initializeSongDecoder()) {
+        Shutdown();
+        return -1;
+    }
     return 0;
 }
 
 extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     // Loads a chart JSON file through ChartParser.
     if (!ChartParser::loadChart(chartPath, g_state.chart))
+        return -1;
+    if (!loadSong(&g_state, chartPath))
         return -1;
 
     g_state.requestedSessionMode.store(SessionMode_Judge);
@@ -284,5 +293,6 @@ extern "C" PLUGIN_API void Shutdown(void) {
         g_adac = nullptr;
     }
     releaseAubio(&g_state);
+    shutdownSongDecoder();
     aubio_cleanup();
 }

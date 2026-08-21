@@ -265,7 +265,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"0.1.0"`입니다.
+현재 반환값은 `"0.1.1"`입니다.
 
 ### Initialize
 
@@ -303,6 +303,7 @@ int LoadChart(const char *chartPath);
 
 다음 세션에서 사용할 채보 JSON 파일을 로드합니다.
 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
+채보의 `song.audioFile` MP3도 함께 PCM으로 디코딩합니다.
 
 반환값:
 
@@ -448,7 +449,8 @@ int GetSongSyncInfo(SongSyncInfo *outInfo);
 ```
 
 로드된 채보의 곡 파일과 네이티브 오디오 시계에 동기화된 재생 시각을 가져옵니다.
-곡 파일의 실제 재생은 Unity `AudioSource`가 담당합니다.
+곡은 `LoadChart`에서 DLL 내부 PCM 버퍼로 읽히며, `StartSession` 뒤 카운트다운이 끝나면
+기타 입력과 믹싱되어 DLL의 RtAudio 출력과 DSP를 통과합니다.
 
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |
@@ -457,8 +459,8 @@ int GetSongSyncInfo(SongSyncInfo *outInfo);
 | `durationMs` | `int` | 채보에 기록된 곡 길이 |
 | `songTimeMs` | `double` | 곡 시작 기준 재생 시각. 카운트다운 중에는 음수 |
 
-`songTimeMs >= 0`가 되는 첫 프레임에 `AudioSource.Play()`를 호출합니다. 이후 재생 위치를
-`songTimeMs / 1000.0`에 맞추면 Unity 프레임 지연으로 생긴 시작 오차를 보정할 수 있습니다.
+`songTimeMs`는 DLL이 실제로 출력하는 곡의 재생 위치입니다. 카운트다운 중에는 음수이며,
+0 이상부터 곡 PCM이 RtAudio 출력에 믹싱됩니다.
 
 반환값:
 
@@ -499,29 +501,20 @@ void Update()
 }
 ```
 
-## Unity 곡 재생 동기화 예시
+## Unity 곡 재생 시각 조회 예시
 
 ```csharp
-bool songStarted;
-
 void Update()
 {
     if (PakNativePlugin.GetSongSyncInfo(out var song) != 0)
         return;
 
-    if (!songStarted && song.songTimeMs >= 0.0)
-    {
-        audioSource.Play();
-        songStarted = true;
-    }
-
-    if (songStarted)
-        audioSource.time = (float)(song.songTimeMs / 1000.0);
+    // song.songTimeMs는 DLL이 출력 중인 곡 위치다.
+    songProgressSlider.value = (float)(song.songTimeMs / song.durationMs);
 }
 ```
 
-`audioSource`에는 `song.audioFile`에 해당하는 `AudioClip`을 미리 연결합니다. `audioOffsetMs`는
-채보 노트 시각에 이미 반영되어 있으므로 `AudioSource.time`에 별도로 더하거나 빼지 않습니다.
+Unity `AudioSource`로 같은 곡을 별도로 재생하면 이중 출력되므로 사용하지 않습니다.
 
 ## Unity 기타 입력 루프 예시
 
