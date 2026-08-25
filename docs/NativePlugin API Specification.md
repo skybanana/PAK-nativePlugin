@@ -78,6 +78,27 @@ Initialize
 `LoadChart`를 호출한 뒤 시작한 세션은 채보 판정 모드이며, `LoadChart` 없이 시작한 세션은 기타 입력 모드입니다.
 세션 종료 시에는 `StopSession`을 호출하고, 플러그인을 더 이상 쓰지 않을 때 `Shutdown`을 호출합니다.
 
+### 오디오 옵션 화면
+
+드라이버와 장치는 스트림을 열기 전에 매번 조회할 수 있습니다.
+
+```text
+GetAudioDriverCount
+  -> GetAudioDriverInfo(index)             // ASIO, WASAPI 등
+  -> GetAudioDeviceCount(api)
+  -> GetAudioDeviceInfo(api, index)        // 장치명과 inputChannels 확인
+  -> InitializeWithAudioDriver(...)
+```
+
+`GetAudioDeviceInfo`의 `id`는 `InitializeWithAudioDriver`의 `inputDeviceId`와
+`outputDeviceId`에 그대로 전달합니다. `inputChannels`는 해당 장치의 입력 채널 수이며,
+UI에서는 1부터 `inputChannels`까지 표시합니다. 사용자가 고른 n번째 채널은
+`channels = 1`, `inputOffset = n - 1`로 초기화합니다. RtAudio는 물리 입력의 별도 이름을
+제공하지 않으므로 채널 표시는 `Input 1`, `Input 2`처럼 순번으로 구성합니다.
+
+곡 음량은 `SetSongVolume`으로 설정합니다. 이는 기타 입력의 모니터 게인과 별개이며,
+기존 `SetDSPParams`의 `inputGain`과 `outputGain`은 그대로 유지됩니다.
+
 ## Unity C# 선언 예시
 
 ```csharp
@@ -147,6 +168,34 @@ public static class PakNativePlugin
         public double songTimeMs;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct AudioDriverInfo
+    {
+        public uint api;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+        public string name;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+        public string displayName;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct AudioDeviceInfo
+    {
+        public uint id;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+        public string name;
+
+        public uint inputChannels;
+        public uint outputChannels;
+        public uint duplexChannels;
+        public int isDefaultInput;
+        public int isDefaultOutput;
+        public uint preferredSampleRate;
+    }
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern string GetPluginVersion();
 
@@ -156,6 +205,28 @@ public static class PakNativePlugin
         uint sampleRate,
         uint inputDevice,
         uint outputDevice,
+        uint inputOffset,
+        uint outputOffset);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint GetAudioDriverCount();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetAudioDriverInfo(uint driverIndex, out AudioDriverInfo outInfo);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint GetAudioDeviceCount(uint api);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetAudioDeviceInfo(uint api, uint deviceIndex, out AudioDeviceInfo outInfo);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int InitializeWithAudioDriver(
+        uint api,
+        uint channels,
+        uint sampleRate,
+        uint inputDeviceId,
+        uint outputDeviceId,
         uint inputOffset,
         uint outputOffset);
 
@@ -183,6 +254,9 @@ public static class PakNativePlugin
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void SetSongVolume(float volume);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int PollJudgeEvent(out JudgeEvent outEvent);

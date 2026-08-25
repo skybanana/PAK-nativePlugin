@@ -66,6 +66,25 @@ struct SongSyncInfo {
     double songTimeMs;
 };
 
+struct AudioDriverInfo {
+    // RtAudio API value used by InitializeWithAudioDriver.
+    unsigned int api;
+    char name[64];
+    char displayName[64];
+};
+
+struct AudioDeviceInfo {
+    // RtAudio device ID used by InitializeWithAudioDriver.
+    unsigned int id;
+    char name[256];
+    unsigned int inputChannels;
+    unsigned int outputChannels;
+    unsigned int duplexChannels;
+    int isDefaultInput;
+    int isDefaultOutput;
+    unsigned int preferredSampleRate;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -80,6 +99,29 @@ PLUGIN_API int Initialize(unsigned int channels,
                           unsigned int outputDevice,
                           unsigned int inputOffset,
                           unsigned int outputOffset);
+
+// Returns the number of audio driver APIs compiled into the plugin.
+PLUGIN_API unsigned int GetAudioDriverCount(void);
+
+// Copies one compiled audio driver API by its zero-based list index.
+PLUGIN_API int GetAudioDriverInfo(unsigned int driverIndex, AudioDriverInfo *outInfo);
+
+// Returns the number of devices currently visible through an audio driver API.
+PLUGIN_API unsigned int GetAudioDeviceCount(unsigned int api);
+
+// Copies one device by its zero-based list index. inputChannels is the selectable input-channel count.
+PLUGIN_API int GetAudioDeviceInfo(unsigned int api,
+                                  unsigned int deviceIndex,
+                                  AudioDeviceInfo *outInfo);
+
+// Initializes a stream through a selected audio driver and RtAudio device IDs.
+PLUGIN_API int InitializeWithAudioDriver(unsigned int api,
+                                         unsigned int channels,
+                                         unsigned int sampleRate,
+                                         unsigned int inputDeviceId,
+                                         unsigned int outputDeviceId,
+                                         unsigned int inputOffset,
+                                         unsigned int outputOffset);
 
 // Loads a chart JSON file for the next session.
 PLUGIN_API int LoadChart(const char *chartPath);
@@ -104,6 +146,9 @@ PLUGIN_API void StopSession(void);
 
 // Updates monitor DSP gain and low-pass parameters.
 PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
+
+// Sets the chart-song mix volume independently from monitor DSP gain.
+PLUGIN_API void SetSongVolume(float volume);
 
 // Polls one pending judge event.
 PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent);

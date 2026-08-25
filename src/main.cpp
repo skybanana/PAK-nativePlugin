@@ -2,7 +2,6 @@
 
 #include <cstring>
 #include <thread>
-#include <vector>
 
 #include "RtAudio.h"
 #include "audioQueue.h"
@@ -12,15 +11,13 @@
 #include "judge.h"
 #include "song.h"
 
-#define FORMAT RTAUDIO_SINT16
-
-static RtAudio *g_adac = nullptr;
-static PluginState g_state = {};
+RtAudio *g_adac = nullptr;
+PluginState g_state = {};
 static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.3.1";
+    return "0.3.2";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -97,103 +94,6 @@ void releaseAubio(PluginState *state) {
     state->chordSpectrum = nullptr;
     state->chordInput = nullptr;
     state->input = nullptr;
-}
-
-extern "C" PLUGIN_API int Initialize(unsigned int channels,
-                                     unsigned int sampleRate,
-                                     unsigned int inputDevice,
-                                     unsigned int outputDevice,
-                                     unsigned int inputOffset,
-                                     unsigned int outputOffset) {
-    // Initializes RtAudio, DSP state, aubio detectors, and fixed queues.
-    Shutdown();
-
-    g_adac = new RtAudio();
-    g_adac->showWarnings(true);
-
-    g_state.chart = {};
-    g_state.channels = channels;
-    g_state.sampleRate = sampleRate;
-    g_state.bufferFrames = 128;
-    g_state.nextNoteIndex.store(0);
-    g_state.lastDetectedMidi = -1;
-    g_state.input = nullptr;
-    g_state.pitch = nullptr;
-    g_state.onset = nullptr;
-    g_state.chordInput = nullptr;
-    g_state.chordSpectrum = nullptr;
-    g_state.pitchDetector = nullptr;
-    g_state.onsetDetector = nullptr;
-    g_state.chordFft = nullptr;
-    g_state.inputGain.store(4.0f);
-    g_state.outputGain.store(0.5f);
-    g_state.lpfAlpha.store(0.2f);
-    g_state.stopRequested.store(true);
-    g_state.requestedSessionMode.store(SessionMode_GuitarInput);
-    g_state.sessionMode.store(SessionMode_None);
-    g_state.sessionStreamTimeOffset.store(0.0);
-    g_state.sessionClockStarted.store(false);
-    g_state.lastChartTimeMs.store(-COUNTDOWN_MS);
-    g_state.practiceSpeed.store(1.0f);
-    g_state.lpfState.assign(channels, 0.0f);
-    g_state.songSamples.clear();
-    g_state.songChannels = 0;
-    g_state.songFrames = 0;
-    g_state.pitchObservations.clear();
-    g_state.pendingGuitarInputs.clear();
-    g_state.pendingJudgments.clear();
-
-    RtAudio::StreamParameters iParams, oParams;
-    iParams.nChannels = channels;
-    iParams.firstChannel = inputOffset;
-    oParams.nChannels = channels;
-    oParams.firstChannel = outputOffset;
-
-    if (inputDevice == 0) {
-        iParams.deviceId = g_adac->getDefaultInputDevice();
-    } else {
-        std::vector<unsigned int> deviceIds = g_adac->getDeviceIds();
-        iParams.deviceId = deviceIds[inputDevice];
-    }
-
-    if (outputDevice == 0) {
-        oParams.deviceId = g_adac->getDefaultOutputDevice();
-    } else {
-        std::vector<unsigned int> deviceIds = g_adac->getDeviceIds();
-        oParams.deviceId = deviceIds[outputDevice];
-    }
-
-    RtAudio::StreamOptions options;
-    if (g_adac->openStream(&oParams,
-                           &iParams,
-                           FORMAT,
-                           sampleRate,
-                           &g_state.bufferFrames,
-                           &inoutRhythmGame,
-                           (void *)&g_state,
-                           &options)) {
-        Shutdown();
-        return -1;
-    }
-
-    prepareAudioQueue(&g_state.audioQueue, 8, g_state.bufferFrames * channels);
-    preparePluginEventQueue(&g_state.eventQueue, 64);
-
-    g_state.input = new_fvec(g_state.bufferFrames);
-    g_state.pitch = new_fvec(1);
-    g_state.onset = new_fvec(1);
-    g_state.chordInput = new_fvec(CHORD_FFT_SIZE);
-    g_state.chordSpectrum = new_cvec(CHORD_FFT_SIZE);
-    g_state.pitchDetector = new_aubio_pitch("default", 2048, g_state.bufferFrames, sampleRate);
-    g_state.onsetDetector = new_aubio_onset("default", 1024, g_state.bufferFrames, sampleRate);
-    g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
-    aubio_pitch_set_unit(g_state.pitchDetector, "midi");
-    aubio_onset_set_threshold(g_state.onsetDetector, 0.3f);
-    if (!initializeSongDecoder()) {
-        Shutdown();
-        return -1;
-    }
-    return 0;
 }
 
 extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
@@ -311,6 +211,11 @@ extern "C" PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float
     g_state.inputGain.store(inputGain);
     g_state.outputGain.store(outputGain);
     g_state.lpfAlpha.store(lpfAlpha);
+}
+
+extern "C" PLUGIN_API void SetSongVolume(float volume) {
+    // Updates the chart-song volume without changing the instrument monitor gain.
+    g_state.songVolume.store(volume);
 }
 
 extern "C" PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent) {

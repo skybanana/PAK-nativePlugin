@@ -55,6 +55,7 @@ struct PluginState {
     unsigned long long songFrames;
     std::atomic<float> inputGain;
     std::atomic<float> outputGain;
+    std::atomic<float> songVolume;
     std::atomic<float> lpfAlpha;
     std::atomic<bool> stopRequested;
     std::atomic<bool> gameStarted;

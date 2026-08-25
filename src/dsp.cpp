@@ -29,7 +29,8 @@ void processMonitorDsp(PluginState *state,
                 if (songFrame < state->songFrames) {
                     unsigned int songChannel = state->songChannels == 1 ? 0 : channel % state->songChannels;
                     unsigned long long songIndex = songFrame * state->songChannels + songChannel;
-                    sample += (float)state->songSamples[songIndex] / 32768.0f;
+                    sample += (float)state->songSamples[songIndex] / 32768.0f *
+                              state->songVolume.load();
                 }
             }
 

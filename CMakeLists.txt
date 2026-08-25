@@ -56,6 +56,8 @@ add_library(PAKNativePlugin SHARED
   "src/eventQueue.h"
   "src/main.cpp"
   "src/main.h"
+  "src/setting.cpp"
+  "src/setting.h"
   "src/plugin_state.h"
   "src/song.cpp"
   "src/song.h"
