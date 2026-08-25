@@ -166,6 +166,17 @@ add_executable(PracticeModeSlowDownTest
 )
 add_dependencies(PracticeModeSlowDownTest PAKNativePlugin)
 
+# DLL 기반 운지 연습 테스트
+add_executable(PracticeModeFingeringTest
+  "test/PracticeModeFingeringTest.cpp"
+  "src/ChartParser.cpp"
+)
+target_link_libraries(PracticeModeFingeringTest
+  PRIVATE
+    nlohmann_json::nlohmann_json
+)
+add_dependencies(PracticeModeFingeringTest PAKNativePlugin)
+
 # DLL 기반 기타 입력 테스트
 add_executable(guitarInputTest
   "test/guitarInputTest.cpp"

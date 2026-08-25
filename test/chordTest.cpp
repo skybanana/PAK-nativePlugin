@@ -183,7 +183,9 @@ int main(int argc, char *argv[]) {
     state.bufferBytes = bufferFrames * channels * sizeof(MY_TYPE);
     adac.startStream();
 
-    std::cout << "Waiting for input... press <enter> to quit." << std::flush;
+    std::cout << "Waiting for Am... "
+                 "press <enter> to quit."
+              << std::flush;
     std::cin.get();
 
     adac.stopStream();

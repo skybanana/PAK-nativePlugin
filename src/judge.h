@@ -13,6 +13,8 @@ struct PendingJudgment {
     double onsetAudioTimeMs;
     double errorMs;
     double deadlineChartTimeMs;
+    double deadlineAudioTimeMs;
+    bool isFingeringPractice;
     std::vector<float> chordSamples;
 };
 

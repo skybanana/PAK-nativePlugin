@@ -21,7 +21,9 @@ void processMonitorDsp(PluginState *state,
 
             double songTimeSeconds = sessionStreamTime + (double)frame / state->sampleRate
                                      - COUNTDOWN_SECONDS;
-            if (state->sessionMode.load() != SessionMode_SlowPractice && songTimeSeconds >= 0.0) {
+            int sessionMode = state->sessionMode.load();
+            if (sessionMode != SessionMode_SlowPractice &&
+                sessionMode != SessionMode_FingeringPractice && songTimeSeconds >= 0.0) {
                 unsigned long long songFrame =
                     (unsigned long long)(songTimeSeconds * state->sampleRate);
                 if (songFrame < state->songFrames) {

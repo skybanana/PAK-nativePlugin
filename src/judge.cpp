@@ -76,14 +76,23 @@ bool selectPitchObservation(PluginState *state,
     double bestTimeDistance = 1000000.0;
 
     for (const PitchObservation &observation : state->pitchObservations) {
-        if (observation.chartTimeMs < pending.onsetChartTimeMs)
-            continue;
-        if (observation.chartTimeMs > pending.deadlineChartTimeMs)
-            continue;
+        if (pending.isFingeringPractice) {
+            if (observation.audioTimeMs < pending.onsetAudioTimeMs ||
+                observation.audioTimeMs > pending.deadlineAudioTimeMs)
+                continue;
+        } else {
+            if (observation.chartTimeMs < pending.onsetChartTimeMs ||
+                observation.chartTimeMs > pending.deadlineChartTimeMs)
+                continue;
+        }
         if (observation.midi == 0)
             continue;
 
-        double timeDistance = std::abs(observation.chartTimeMs - pending.deadlineChartTimeMs);
+        double observationTime = pending.isFingeringPractice ? observation.audioTimeMs
+                                                              : observation.chartTimeMs;
+        double deadlineTime = pending.isFingeringPractice ? pending.deadlineAudioTimeMs
+                                                           : pending.deadlineChartTimeMs;
+        double timeDistance = std::abs(observationTime - deadlineTime);
         if (!found || timeDistance < bestTimeDistance) {
             *selected = observation;
             bestTimeDistance = timeDistance;
@@ -94,10 +103,13 @@ bool selectPitchObservation(PluginState *state,
     return found;
 }
 
-void prunePitchObservations(PluginState *state, double chartTimeMs) {
+void prunePitchObservations(PluginState *state, double chartTimeMs, double audioTimeMs) {
     // Keeps only recent pitch observations needed by pending judgments.
+    bool isFingeringPractice = state->sessionMode.load() == SessionMode_FingeringPractice;
     while (!state->pitchObservations.empty() &&
-           state->pitchObservations.front().chartTimeMs < chartTimeMs - 500.0) {
+           (isFingeringPractice
+                ? state->pitchObservations.front().audioTimeMs < audioTimeMs - 500.0
+                : state->pitchObservations.front().chartTimeMs < chartTimeMs - 500.0)) {
         state->pitchObservations.erase(state->pitchObservations.begin());
     }
 }
@@ -182,12 +194,14 @@ bool matchesChord(PluginState *state,
     return true;
 }
 
-void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
+void finalizePendingJudgments(PluginState *state, double chartTimeMs, double audioTimeMs) {
     // Emits delayed judge events after their pitch window has closed.
     size_t index = 0;
     while (index < state->pendingJudgments.size()) {
         PendingJudgment pending = state->pendingJudgments[index];
-        if (chartTimeMs < pending.deadlineChartTimeMs) {
+        if (pending.isFingeringPractice
+                ? audioTimeMs < pending.deadlineAudioTimeMs
+                : chartTimeMs < pending.deadlineChartTimeMs) {
             index++;
             continue;
         }
@@ -203,7 +217,9 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
             detectedMidi = hasPitch ? selected.midi : 0;
             pitchMatched = std::abs(detectedMidi - note.midi) <= PITCH_TOLERANCE;
         }
-        const char *timingResult = judgeTiming(std::abs(pending.errorMs));
+        const char *timingResult = pending.isFingeringPractice
+                                       ? "Perfect"
+                                       : judgeTiming(std::abs(pending.errorMs));
 
         JudgeEvent event;
         int result = pitchMatched ? resultToCode(timingResult) : JudgeResult_Miss;
@@ -216,6 +232,10 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs) {
                        detectedMidi,
                        note);
         pushJudgeEvent(state, event);
+        if (pending.isFingeringPractice && pitchMatched &&
+            state->nextNoteIndex.load() == pending.noteIndex) {
+            state->nextNoteIndex.store(pending.noteIndex + 1);
+        }
         state->pendingJudgments.erase(state->pendingJudgments.begin() + index);
     }
 }
@@ -256,7 +276,7 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     aubio_pitch_do(state->pitchDetector, state->input, state->pitch);
     state->lastDetectedMidi = (int)std::round(fvec_get_sample(state->pitch, 0));
     state->pitchObservations.push_back({audioTimeMs, chartTimeMs, state->lastDetectedMidi});
-    prunePitchObservations(state, chartTimeMs);
+    prunePitchObservations(state, chartTimeMs, audioTimeMs);
 
     aubio_onset_do(state->onsetDetector, state->input, state->onset);
     bool hasOnset = fvec_get_sample(state->onset, 0) != 0.0f;
@@ -266,6 +286,38 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
 
     if (state->sessionMode.load() == SessionMode_GuitarInput) {
         processGuitarInputBlock(state, hasOnset, onsetAudioTimeMs, audioTimeMs);
+        return;
+    }
+
+    if (state->sessionMode.load() == SessionMode_FingeringPractice) {
+        int noteIndex = state->nextNoteIndex.load();
+        if (hasOnset && noteIndex < (int)state->chart.notes.size() &&
+            state->pendingJudgments.empty()) {
+            const ChartParser::ChartNote &note = state->chart.notes[noteIndex];
+            double settleMs = note.interpretation == "chord" ? CHORD_SETTLE_MS : PITCH_SETTLE_MS;
+            state->pendingJudgments.push_back({noteIndex,
+                                               (double)note.startMs,
+                                               onsetAudioTimeMs,
+                                               0.0,
+                                               (double)note.startMs,
+                                               onsetAudioTimeMs + settleMs,
+                                               true,
+                                               {}});
+        }
+
+        for (PendingJudgment &pending : state->pendingJudgments) {
+            const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
+            if (note.interpretation != "chord")
+                continue;
+
+            for (unsigned int i = 0; i < block->frames; i++)
+                pending.chordSamples.push_back(fvec_get_sample(state->input, i));
+        }
+
+        finalizePendingJudgments(state, chartTimeMs, audioTimeMs);
+        if (state->nextNoteIndex.load() >= (int)state->chart.notes.size() &&
+            state->pendingJudgments.empty())
+            state->summaryFinished.store(true);
         return;
     }
 
@@ -288,6 +340,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
                                                onsetAudioTimeMs,
                                                errorMs,
                                                onsetChartTimeMs + settleMs,
+                                               onsetAudioTimeMs + settleMs,
+                                               false,
                                                {}});
             noteIndex++;
             state->nextNoteIndex.store(noteIndex);
@@ -303,7 +357,7 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
             pending.chordSamples.push_back(fvec_get_sample(state->input, i));
     }
 
-    finalizePendingJudgments(state, chartTimeMs);
+    finalizePendingJudgments(state, chartTimeMs, audioTimeMs);
 
     noteIndex = state->nextNoteIndex.load();
     while (noteIndex < (int)state->chart.notes.size()) {

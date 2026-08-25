@@ -56,6 +56,20 @@ Initialize
 `StartSlowPracticeSession`은 채보 판정은 유지하지만 곡 파일을 출력에 섞지 않습니다.
 초기 속도는 100%이며, `SetPracticeSpeed`로 25%~125% 범위에서 즉시 바꿀 수 있습니다.
 
+### 운지 연습
+
+```text
+Initialize
+  -> LoadChart
+  -> StartFingeringPracticeSession
+      -> GetAudioStats / PollJudgeEvent 반복 호출
+  -> StopSession
+  -> Shutdown
+```
+
+현재 노트에서 채보 진행이 멈춥니다. 올바른 입력은 다음 노트로 진행하고, 틀린 입력은
+`Miss` 이벤트만 발생시키며 현재 노트에 머뭅니다. 곡은 재생하지 않습니다.
+
 `Initialize`는 내부에서 기존 리소스를 먼저 정리한 뒤 새 오디오 스트림을 준비합니다.
 `ResetSessionTime`은 새 세션 시작 전에 내부 시간과 판정 진행 상태를 0부터 다시 시작하도록 초기화합니다.
 `LoadChart`는 채보 판정에만 필요하며, 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
@@ -162,6 +176,9 @@ public static class PakNativePlugin
     public static extern void SetPracticeSpeed(float speed);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int StartFingeringPracticeSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void StopSession();
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -263,7 +280,7 @@ MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
 | -------------------- | -------- | ---------------------------------------------- |
 | `streamTime`         | `double` | 세션 기준 스트림 시간. 초 단위                 |
 | `audioTimeMs`        | `double` | 오디오 스트림 시간. ms 단위                    |
-| `chartTimeMs`        | `double` | 채보 시간. 천천히 재생 연습에서는 설정한 속도로 진행 |
+| `chartTimeMs`        | `double` | 채보 시간. 천천히 재생 연습에서는 설정한 속도로 진행, 운지 연습에서는 현재 노트 시각에 고정 |
 | `countdownMs`        | `double` | 세션 시작 전 카운트다운 시간. 현재 5000        |
 | `streamLatency`      | `int`    | RtAudio 스트림 지연                            |
 | `bufferFrames`       | `uint`   | 내부 오디오 버퍼 프레임 수. 현재 128           |
@@ -287,7 +304,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"0.2.0"`입니다.
+현재 반환값은 `"0.3.0"`입니다.
 
 ### Initialize
 
@@ -390,6 +407,16 @@ void SetPracticeSpeed(float speed);
 
 천천히 재생 연습의 채보 진행 속도를 설정합니다. 허용 범위는 `0.25f`~`1.25f`이며,
 범위를 벗어난 값은 가장 가까운 허용값으로 적용됩니다. 실행 중 호출하면 다음 오디오 버퍼부터 반영됩니다.
+
+### StartFingeringPracticeSession
+
+```c
+int StartFingeringPracticeSession(void);
+```
+
+곡을 재생하지 않고 현재 노트의 채보 시각에서 진행을 멈춥니다. 올바른 피치 또는 코드 입력은
+`Perfect` 이벤트를 발생시키고 다음 노트로 이동합니다. 틀린 입력은 `Miss` 이벤트를 발생시키며
+현재 노트에 남습니다. 채보의 시간 오차는 판정에 사용하지 않습니다.
 
 ### StopSession
 

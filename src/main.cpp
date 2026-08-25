@@ -20,7 +20,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.2.0";
+    return "0.3.0";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -42,11 +42,19 @@ int inoutRhythmGame(void *outputBuffer,
     state->lastStreamTime.store(sessionStreamTime);
     double chartTimeMs = sessionStreamTime * 1000.0 - COUNTDOWN_MS;
     double chartTimeScale = 1.0;
-    if (state->sessionMode.load() == SessionMode_SlowPractice) {
+    int sessionMode = state->sessionMode.load();
+    if (sessionMode == SessionMode_SlowPractice) {
         chartTimeMs = state->lastChartTimeMs.load();
         chartTimeScale = state->practiceSpeed.load();
         state->lastChartTimeMs.store(
             chartTimeMs + nBufferFrames * 1000.0 / state->sampleRate * chartTimeScale);
+    } else if (sessionMode == SessionMode_FingeringPractice) {
+        int noteIndex = state->nextNoteIndex.load();
+        chartTimeMs = noteIndex < (int)state->chart.notes.size()
+                          ? state->chart.notes[noteIndex].startMs
+                          : state->chart.durationMs;
+        chartTimeScale = 0.0;
+        state->lastChartTimeMs.store(chartTimeMs);
     } else {
         state->lastChartTimeMs.store(chartTimeMs);
     }
@@ -268,6 +276,25 @@ extern "C" PLUGIN_API void SetPracticeSpeed(float speed) {
     if (speed > 1.25f)
         speed = 1.25f;
     g_state.practiceSpeed.store(speed);
+}
+
+extern "C" PLUGIN_API int StartFingeringPracticeSession(void) {
+    // Starts note-by-note judgment without song playback or timing-based misses.
+    if (g_adac == nullptr || g_adac->isStreamOpen() == false)
+        return -1;
+
+    ResetSessionTime();
+    g_state.sessionMode.store(SessionMode_FingeringPractice);
+    g_state.stopRequested.store(false);
+    g_state.droppedAudioBlocks.store(0);
+    g_state.droppedJudgeEvents.store(0);
+
+    g_judgeThread = std::thread(judgeThreadMain, &g_state);
+    if (g_adac->startStream()) {
+        StopSession();
+        return -1;
+    }
+    return 0;
 }
 
 extern "C" PLUGIN_API void StopSession(void) {

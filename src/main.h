@@ -96,6 +96,9 @@ PLUGIN_API int StartSlowPracticeSession(void);
 // Sets the slow-practice chart speed. Supported range is 0.25 to 1.25.
 PLUGIN_API void SetPracticeSpeed(float speed);
 
+// Starts a no-song practice session that waits for a correct input before advancing.
+PLUGIN_API int StartFingeringPracticeSession(void);
+
 // Stops the current session.
 PLUGIN_API void StopSession(void);
 
