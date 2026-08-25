@@ -211,7 +211,7 @@ public static class PakNativePlugin
 | 3   | `Miss`    | 타이밍 범위를 벗어났거나 피치가 불일치    |
 
 `single` 이벤트의 피치 판정은 목표 MIDI와 감지 MIDI가 정확히 같아야 통과합니다.
-`chord` 이벤트는 아래의 CG-HCM 코드 판정 결과가 일치해야 통과합니다.
+`chord` 이벤트는 아래의 CG-FPM 코드 판정 결과가 일치해야 통과합니다.
 
 ## 채보 interpretation과 코드 판정
 
@@ -220,13 +220,25 @@ public static class PakNativePlugin
 | `interpretation` | 채보 필수 정보 | 판정 방식 | 플러그인 이벤트 수 |
 | ---------------- | -------------- | --------- | ------------------ |
 | `single` | `string`, `fret`, `finger`, `technique` | aubio MIDI 피치 판정 | 노트당 1개 |
-| `chord` | `chordId`, `strumTechnique` | CG-HCM 코드 판정 | 코드 이벤트당 1개 |
+| `chord` | `chordId`, `strumTechnique` | CG-FPM 코드 판정 | 코드 이벤트당 1개 |
 
 `chordId`는 `track.chordDefinitions`의 `id`를 참조합니다. 플러그인은 해당 코드의 `fingering`과 `track.tuning`으로 실제 MIDI 음 목록을 계산합니다. 뮤트(`fret: -1`) 줄은 코드 판정 대상에서 제외합니다.
 
 코드는 운지된 줄마다 단음 이벤트로 분리되지 않습니다. 하나의 chord 이벤트가 하나의 판정 대상이며, `noteName`에는 코드 기호(`chordDefinitions[].symbol`)가 담깁니다.
 
-### CG-HCM: Chart-Guided Harmonic Chroma Matching
+### CG-FPM: Chart-Guided Fundamental Presence Matching
+
+CG-FPM은 채보 운지의 각 MIDI 기본음 대역에 에너지가 있는지 확인하는 방식입니다. 코드 전체를 후보 중에서 분류하지 않으며, 한 음의 배음이 다른 목표음의 근거가 되지 않도록 기본음 대역만 사용합니다.
+
+1. 코드 onset 뒤 160 ms 동안 모노 입력 샘플을 수집합니다.
+2. Hann window와 16,384-point FFT를 적용합니다.
+3. 채보 운지 MIDI 각각의 기본음 주파수 주변 5개 FFT bin 에너지를 계산합니다.
+4. 각 목표 기본음 주변에서 최강 스펙트럼 피크가 해당 목표 기본음 FFT bin에 있는지 확인합니다.
+5. 모든 목표음 에너지가 목표음 중 최강 기본음 에너지의 15% 이상이면 일치로 판정합니다.
+
+예를 들어 G5(`G2`, `D3`)는 약 98 Hz와 147 Hz 대역이 모두 있어야 통과합니다. 또한 각 대역 주변의 최강 피크가 목표 주파수에 있어야 하므로, 인접한 F#5나 G#5처럼 다른 주파수가 더 강한 입력은 거절합니다. G2의 3차 배음인 약 294 Hz는 D3의 기본음 대역이 아니므로 D3의 근거로 사용되지 않습니다.
+
+### CG-HCM: Chart-Guided Harmonic Chroma Matching (보존됨, 현재 미사용)
 
 CG-HCM은 채보가 요구하는 코드가 입력 스펙트럼에 포함됐는지 확인하는 방식입니다. 코드 자체를 전체 후보 중에서 새로 분류하지 않습니다.
 

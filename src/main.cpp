@@ -20,7 +20,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.3.0";
+    return "0.3.1";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -46,8 +46,8 @@ int inoutRhythmGame(void *outputBuffer,
     if (sessionMode == SessionMode_SlowPractice) {
         chartTimeMs = state->lastChartTimeMs.load();
         chartTimeScale = state->practiceSpeed.load();
-        state->lastChartTimeMs.store(
-            chartTimeMs + nBufferFrames * 1000.0 / state->sampleRate * chartTimeScale);
+        state->lastChartTimeMs.store(chartTimeMs +
+                                     nBufferFrames * 1000.0 / state->sampleRate * chartTimeScale);
     } else if (sessionMode == SessionMode_FingeringPractice) {
         int noteIndex = state->nextNoteIndex.load();
         chartTimeMs = noteIndex < (int)state->chart.notes.size()

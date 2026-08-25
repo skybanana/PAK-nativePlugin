@@ -31,12 +31,12 @@
           {
             "string": 6,
             "fret": 3,
-            "finger": 0
+            "finger": 1
           },
           {
-            "string": 4,
-            "fret": 0,
-            "finger": 0
+            "string": 5,
+            "fret": 5,
+            "finger": 3
           }
         ]
       },
@@ -47,12 +47,12 @@
           {
             "string": 5,
             "fret": 3,
-            "finger": 0
+            "finger": 1
           },
           {
-            "string": 3,
-            "fret": 0,
-            "finger": 0
+            "string": 4,
+            "fret": 5,
+            "finger": 3
           }
         ]
       },
