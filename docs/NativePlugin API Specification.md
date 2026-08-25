@@ -40,6 +40,22 @@ Initialize
   -> Shutdown
 ```
 
+### 천천히 재생 연습
+
+```text
+Initialize
+  -> LoadChart
+  -> SetPracticeSpeed(0.25 ~ 1.25)
+  -> StartSlowPracticeSession
+      -> SetPracticeSpeed로 진행 중 속도 변경
+      -> GetAudioStats / PollJudgeEvent 반복 호출
+  -> StopSession
+  -> Shutdown
+```
+
+`StartSlowPracticeSession`은 채보 판정은 유지하지만 곡 파일을 출력에 섞지 않습니다.
+초기 속도는 100%이며, `SetPracticeSpeed`로 25%~125% 범위에서 즉시 바꿀 수 있습니다.
+
 `Initialize`는 내부에서 기존 리소스를 먼저 정리한 뒤 새 오디오 스트림을 준비합니다.
 `ResetSessionTime`은 새 세션 시작 전에 내부 시간과 판정 진행 상태를 0부터 다시 시작하도록 초기화합니다.
 `LoadChart`는 채보 판정에만 필요하며, 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
@@ -138,6 +154,12 @@ public static class PakNativePlugin
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int StartSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int StartSlowPracticeSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void SetPracticeSpeed(float speed);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void StopSession();
@@ -241,7 +263,7 @@ MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
 | -------------------- | -------- | ---------------------------------------------- |
 | `streamTime`         | `double` | 세션 기준 스트림 시간. 초 단위                 |
 | `audioTimeMs`        | `double` | 오디오 스트림 시간. ms 단위                    |
-| `chartTimeMs`        | `double` | 채보 시간. `audioTimeMs - countdownMs`         |
+| `chartTimeMs`        | `double` | 채보 시간. 천천히 재생 연습에서는 설정한 속도로 진행 |
 | `countdownMs`        | `double` | 세션 시작 전 카운트다운 시간. 현재 5000        |
 | `streamLatency`      | `int`    | RtAudio 스트림 지연                            |
 | `bufferFrames`       | `uint`   | 내부 오디오 버퍼 프레임 수. 현재 128           |
@@ -265,7 +287,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"0.1.1"`입니다.
+현재 반환값은 `"0.2.0"`입니다.
 
 ### Initialize
 
@@ -350,6 +372,24 @@ int StartSession(void);
 - `-1`: 초기화되지 않았거나 스트림 시작 실패
 
 세션 시작 직후 5000 ms 카운트다운이 적용됩니다.
+
+### StartSlowPracticeSession
+
+```c
+int StartSlowPracticeSession(void);
+```
+
+곡을 재생하지 않는 천천히 재생 연습 세션을 시작합니다. `LoadChart`를 먼저 호출해야 하며,
+채보와 카운트다운은 현재 연습 속도로 진행됩니다.
+
+### SetPracticeSpeed
+
+```c
+void SetPracticeSpeed(float speed);
+```
+
+천천히 재생 연습의 채보 진행 속도를 설정합니다. 허용 범위는 `0.25f`~`1.25f`이며,
+범위를 벗어난 값은 가장 가까운 허용값으로 적용됩니다. 실행 중 호출하면 다음 오디오 버퍼부터 반영됩니다.
 
 ### StopSession
 
@@ -450,14 +490,15 @@ int GetSongSyncInfo(SongSyncInfo *outInfo);
 
 로드된 채보의 곡 파일과 네이티브 오디오 시계에 동기화된 재생 시각을 가져옵니다.
 곡은 `LoadChart`에서 DLL 내부 PCM 버퍼로 읽히며, `StartSession` 뒤 카운트다운이 끝나면
-기타 입력과 믹싱되어 DLL의 RtAudio 출력과 DSP를 통과합니다.
+기타 입력과 믹싱되어 DLL의 RtAudio 출력과 DSP를 통과합니다. `StartSlowPracticeSession`에서는
+곡을 믹싱하지 않습니다.
 
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |
 | `audioFile` | `char[260]` | 채보 `song.audioFile` 경로 |
 | `audioOffsetMs` | `int` | 채보 tick 변환에 사용된 `song.audioOffsetMs` |
 | `durationMs` | `int` | 채보에 기록된 곡 길이 |
-| `songTimeMs` | `double` | 곡 시작 기준 재생 시각. 카운트다운 중에는 음수 |
+| `songTimeMs` | `double` | 곡 시작 기준 재생 시각. 천천히 재생 연습에서는 채보 시각 |
 
 `songTimeMs`는 DLL이 실제로 출력하는 곡의 재생 위치입니다. 카운트다운 중에는 음수이며,
 0 이상부터 곡 PCM이 RtAudio 출력에 믹싱됩니다.

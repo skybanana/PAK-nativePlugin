@@ -246,7 +246,7 @@ void fillJudgeEvent(JudgeEvent *event,
 void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     // Judges one captured audio block and emits note events.
     double audioTimeMs = block->streamTime * 1000.0;
-    double chartTimeMs = audioTimeMs - COUNTDOWN_MS;
+    double chartTimeMs = block->chartTimeMs;
 
     for (unsigned int i = 0; i < block->frames; i++) {
         smpl_t sample = (smpl_t)block->samples[i * state->channels] / 32768.0f;
@@ -261,7 +261,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     aubio_onset_do(state->onsetDetector, state->input, state->onset);
     bool hasOnset = fvec_get_sample(state->onset, 0) != 0.0f;
     double onsetAudioTimeMs = aubio_onset_get_last_s(state->onsetDetector) * 1000.0;
-    double onsetChartTimeMs = onsetAudioTimeMs - COUNTDOWN_MS;
+    double onsetChartTimeMs = chartTimeMs +
+                              (onsetAudioTimeMs - audioTimeMs) * block->chartTimeScale;
 
     if (state->sessionMode.load() == SessionMode_GuitarInput) {
         processGuitarInputBlock(state, hasOnset, onsetAudioTimeMs, audioTimeMs);

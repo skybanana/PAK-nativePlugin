@@ -24,6 +24,7 @@ enum SessionMode {
     SessionMode_None = 0,
     SessionMode_GuitarInput = 1,
     SessionMode_Judge = 2,
+    SessionMode_SlowPractice = 3,
 };
 
 struct PitchObservation {
@@ -62,6 +63,8 @@ struct PluginState {
     std::atomic<unsigned int> droppedAudioBlocks;
     std::atomic<unsigned int> droppedJudgeEvents;
     std::atomic<double> lastStreamTime;
+    std::atomic<double> lastChartTimeMs;
+    std::atomic<float> practiceSpeed;
     std::atomic<double> sessionStreamTimeOffset;
     std::atomic<bool> sessionClockStarted;
     std::atomic<int> nextNoteIndex;

@@ -160,6 +160,12 @@ target_link_libraries(RhythmGameDLL
     nlohmann_json::nlohmann_json
 )
 
+# DLL 기반 천천히 재생 연습 속도 변경 테스트
+add_executable(PracticeModeSlowDownTest
+  "test/PracticeModeSlowDownTest.cpp"
+)
+add_dependencies(PracticeModeSlowDownTest PAKNativePlugin)
+
 # DLL 기반 기타 입력 테스트
 add_executable(guitarInputTest
   "test/guitarInputTest.cpp"

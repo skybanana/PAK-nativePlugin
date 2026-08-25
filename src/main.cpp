@@ -20,7 +20,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.1.1";
+    return "0.2.0";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -40,7 +40,24 @@ int inoutRhythmGame(void *outputBuffer,
     double sessionStreamTime = streamTime - state->sessionStreamTimeOffset.load();
 
     state->lastStreamTime.store(sessionStreamTime);
-    if (!pushAudioBlock(&state->audioQueue, input, nBufferFrames, sampleCount, sessionStreamTime))
+    double chartTimeMs = sessionStreamTime * 1000.0 - COUNTDOWN_MS;
+    double chartTimeScale = 1.0;
+    if (state->sessionMode.load() == SessionMode_SlowPractice) {
+        chartTimeMs = state->lastChartTimeMs.load();
+        chartTimeScale = state->practiceSpeed.load();
+        state->lastChartTimeMs.store(
+            chartTimeMs + nBufferFrames * 1000.0 / state->sampleRate * chartTimeScale);
+    } else {
+        state->lastChartTimeMs.store(chartTimeMs);
+    }
+
+    if (!pushAudioBlock(&state->audioQueue,
+                        input,
+                        nBufferFrames,
+                        sampleCount,
+                        sessionStreamTime,
+                        chartTimeMs,
+                        chartTimeScale))
         state->droppedAudioBlocks.fetch_add(1);
     processMonitorDsp(state, output, input, nBufferFrames, sessionStreamTime);
     return 0;
@@ -108,6 +125,8 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
     g_state.sessionMode.store(SessionMode_None);
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
+    g_state.lastChartTimeMs.store(-COUNTDOWN_MS);
+    g_state.practiceSpeed.store(1.0f);
     g_state.lpfState.assign(channels, 0.0f);
     g_state.songSamples.clear();
     g_state.songChannels = 0;
@@ -189,6 +208,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.summaryFinished.store(false);
     g_state.sessionMode.store(SessionMode_None);
     g_state.lastStreamTime.store(0.0);
+    g_state.lastChartTimeMs.store(-COUNTDOWN_MS);
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
     g_state.audioQueue.readIndex.store(0);
@@ -220,6 +240,34 @@ extern "C" PLUGIN_API int StartSession(void) {
         return -1;
     }
     return 0;
+}
+
+extern "C" PLUGIN_API int StartSlowPracticeSession(void) {
+    // Starts chart judgment without mixing the chart song into the monitor output.
+    if (g_adac == nullptr || g_adac->isStreamOpen() == false)
+        return -1;
+
+    ResetSessionTime();
+    g_state.sessionMode.store(SessionMode_SlowPractice);
+    g_state.stopRequested.store(false);
+    g_state.droppedAudioBlocks.store(0);
+    g_state.droppedJudgeEvents.store(0);
+
+    g_judgeThread = std::thread(judgeThreadMain, &g_state);
+    if (g_adac->startStream()) {
+        StopSession();
+        return -1;
+    }
+    return 0;
+}
+
+extern "C" PLUGIN_API void SetPracticeSpeed(float speed) {
+    // Sets the chart-clock multiplier used by the running slow-practice session.
+    if (speed < 0.25f)
+        speed = 0.25f;
+    if (speed > 1.25f)
+        speed = 1.25f;
+    g_state.practiceSpeed.store(speed);
 }
 
 extern "C" PLUGIN_API void StopSession(void) {
@@ -256,7 +304,7 @@ extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {
     *outStats = {};
     outStats->streamTime = g_state.lastStreamTime.load();
     outStats->audioTimeMs = outStats->streamTime * 1000.0;
-    outStats->chartTimeMs = outStats->audioTimeMs - COUNTDOWN_MS;
+    outStats->chartTimeMs = g_state.lastChartTimeMs.load();
     outStats->countdownMs = COUNTDOWN_MS;
     outStats->streamLatency = g_adac->isStreamOpen() ? g_adac->getStreamLatency() : 0;
     outStats->bufferFrames = g_state.bufferFrames;
@@ -279,7 +327,7 @@ extern "C" PLUGIN_API int GetSongSyncInfo(SongSyncInfo *outInfo) {
         outInfo->audioFile, g_state.chart.audioFile.c_str(), sizeof(outInfo->audioFile) - 1);
     outInfo->audioOffsetMs = g_state.chart.audioOffsetMs;
     outInfo->durationMs = g_state.chart.durationMs;
-    outInfo->songTimeMs = g_state.lastStreamTime.load() * 1000.0 - COUNTDOWN_MS;
+    outInfo->songTimeMs = g_state.lastChartTimeMs.load();
     return 0;
 }
 

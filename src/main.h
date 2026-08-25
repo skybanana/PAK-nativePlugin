@@ -90,6 +90,12 @@ PLUGIN_API void ResetSessionTime(void);
 // Starts audio capture, monitor DSP, and judgment processing.
 PLUGIN_API int StartSession(void);
 
+// Starts a no-song practice session whose chart clock is controlled by SetPracticeSpeed.
+PLUGIN_API int StartSlowPracticeSession(void);
+
+// Sets the slow-practice chart speed. Supported range is 0.25 to 1.25.
+PLUGIN_API void SetPracticeSpeed(float speed);
+
 // Stops the current session.
 PLUGIN_API void StopSession(void);
 
