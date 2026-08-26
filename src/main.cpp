@@ -17,7 +17,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.3.2";
+    return "0.4.1";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -34,7 +34,19 @@ int inoutRhythmGame(void *outputBuffer,
 
     if (!state->sessionClockStarted.exchange(true))
         state->sessionStreamTimeOffset.store(streamTime);
-    double sessionStreamTime = streamTime - state->sessionStreamTimeOffset.load();
+    double rawSessionStreamTime = streamTime - state->sessionStreamTimeOffset.load();
+    state->lastRawStreamTime.store(rawSessionStreamTime);
+
+    if (state->isPaused.load()) {
+        std::memset(output, 0, sampleCount * sizeof(MY_TYPE));
+        return 0;
+    }
+
+    if (state->resumeRequested.exchange(false)) {
+        double pausedDuration = rawSessionStreamTime - state->pauseStartedStreamTime.load();
+        state->pausedStreamDuration.store(state->pausedStreamDuration.load() + pausedDuration);
+    }
+    double sessionStreamTime = rawSessionStreamTime - state->pausedStreamDuration.load();
 
     state->lastStreamTime.store(sessionStreamTime);
     double chartTimeMs = sessionStreamTime * 1000.0 - COUNTDOWN_MS;
@@ -119,6 +131,11 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.lastChartTimeMs.store(-COUNTDOWN_MS);
     g_state.sessionStreamTimeOffset.store(0.0);
     g_state.sessionClockStarted.store(false);
+    g_state.isPaused.store(false);
+    g_state.resumeRequested.store(false);
+    g_state.lastRawStreamTime.store(0.0);
+    g_state.pauseStartedStreamTime.store(0.0);
+    g_state.pausedStreamDuration.store(0.0);
     g_state.audioQueue.readIndex.store(0);
     g_state.audioQueue.writeIndex.store(0);
     g_state.pitchObservations.clear();
@@ -151,12 +168,13 @@ extern "C" PLUGIN_API int StartSession(void) {
 }
 
 extern "C" PLUGIN_API int StartSlowPracticeSession(void) {
-    // Starts chart judgment without mixing the chart song into the monitor output.
+    // Starts chart judgment five seconds before the first note without song mixing.
     if (g_adac == nullptr || g_adac->isStreamOpen() == false)
         return -1;
 
     ResetSessionTime();
     g_state.sessionMode.store(SessionMode_SlowPractice);
+    g_state.lastChartTimeMs.store(g_state.chart.notes.front().startMs - COUNTDOWN_MS);
     g_state.stopRequested.store(false);
     g_state.droppedAudioBlocks.store(0);
     g_state.droppedJudgeEvents.store(0);
@@ -213,6 +231,30 @@ extern "C" PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float
     g_state.lpfAlpha.store(lpfAlpha);
 }
 
+extern "C" PLUGIN_API void PauseSession(void) {
+    // Pauses audio output and judgment while preserving session progress.
+    if (!g_state.isPaused.exchange(true))
+        g_state.pauseStartedStreamTime.store(g_state.lastRawStreamTime.load());
+}
+
+extern "C" PLUGIN_API void ResumeSession(void) {
+    // Resumes a paused session without advancing its session clock.
+    if (g_state.isPaused.exchange(false))
+        g_state.resumeRequested.store(true);
+}
+
+extern "C" PLUGIN_API int RestartSession(void) {
+    // Restarts the active session mode with its clock and judgment progress reset.
+    int sessionMode = g_state.sessionMode.load();
+    StopSession();
+
+    if (sessionMode == SessionMode_SlowPractice)
+        return StartSlowPracticeSession();
+    if (sessionMode == SessionMode_FingeringPractice)
+        return StartFingeringPracticeSession();
+    return StartSession();
+}
+
 extern "C" PLUGIN_API void SetSongVolume(float volume) {
     // Updates the chart-song volume without changing the instrument monitor gain.
     g_state.songVolume.store(volume);
@@ -246,6 +288,7 @@ extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {
     outStats->nextNoteIndex = g_state.nextNoteIndex.load();
     outStats->isRunning = g_adac->isStreamRunning() ? 1 : 0;
     outStats->isFinished = g_state.summaryFinished.load() ? 1 : 0;
+    outStats->isPaused = g_state.isPaused.load() ? 1 : 0;
     return 0;
 }
 

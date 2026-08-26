@@ -156,6 +156,7 @@ public static class PakNativePlugin
         public int nextNoteIndex;
         public int isRunning;
         public int isFinished;
+        public int isPaused;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
@@ -251,6 +252,15 @@ public static class PakNativePlugin
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void StopSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PauseSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ResumeSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int RestartSession();
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
@@ -376,6 +386,7 @@ MIDI 피치가 감지되지 않으면 이벤트를 발생시키지 않습니다.
 | `nextNoteIndex`      | `int`    | 다음 판정 대상 노트 인덱스                     |
 | `isRunning`          | `int`    | 오디오 스트림 실행 중이면 1, 아니면 0          |
 | `isFinished`         | `int`    | 모든 노트 판정이 끝났으면 1, 아니면 0          |
+| `isPaused`           | `int`    | 세션이 일시정지 상태이면 1, 아니면 0           |
 
 `chartTimeMs`가 0보다 작으면 카운트다운 구간입니다.
 
@@ -511,6 +522,36 @@ void StopSession(void);
 ```
 
 현재 오디오 스트림을 멈추고 판정 스레드를 종료합니다.
+
+### PauseSession
+
+```c
+void PauseSession(void);
+```
+
+현재 세션의 오디오 출력과 입력 판정을 멈춥니다. 세션과 채보 시각은 정지한 상태로 유지됩니다.
+
+### ResumeSession
+
+```c
+void ResumeSession(void);
+```
+
+`PauseSession`으로 멈춘 세션을 기존 진행도에서 재개합니다.
+
+### RestartSession
+
+```c
+int RestartSession(void);
+```
+
+현재 세션을 처음부터 다시 시작합니다. 실행 중이던 세션 모드(일반 게임, 느린 연습, 운지 연습)를 유지하며,
+세션 시각과 판정 진행도를 초기화합니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 초기화되지 않았거나 스트림 시작 실패
 
 ### SetDSPParams
 

@@ -52,6 +52,7 @@ struct AudioStats {
     int nextNoteIndex;
     int isRunning;
     int isFinished;
+    int isPaused;
 };
 
 struct SongSyncInfo {
@@ -143,6 +144,15 @@ PLUGIN_API int StartFingeringPracticeSession(void);
 
 // Stops the current session.
 PLUGIN_API void StopSession(void);
+
+// Pauses the current session without resetting its progress.
+PLUGIN_API void PauseSession(void);
+
+// Resumes a session paused by PauseSession.
+PLUGIN_API void ResumeSession(void);
+
+// Restarts the current session mode from the beginning.
+PLUGIN_API int RestartSession(void);
 
 // Updates monitor DSP gain and low-pass parameters.
 PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);

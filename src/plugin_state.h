@@ -69,6 +69,11 @@ struct PluginState {
     std::atomic<float> practiceSpeed;
     std::atomic<double> sessionStreamTimeOffset;
     std::atomic<bool> sessionClockStarted;
+    std::atomic<bool> isPaused;
+    std::atomic<bool> resumeRequested;
+    std::atomic<double> lastRawStreamTime;
+    std::atomic<double> pauseStartedStreamTime;
+    std::atomic<double> pausedStreamDuration;
     std::atomic<int> nextNoteIndex;
     std::vector<PitchObservation> pitchObservations;
     std::vector<PendingGuitarInput> pendingGuitarInputs;
