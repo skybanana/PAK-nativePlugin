@@ -59,6 +59,9 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.songSamples.clear();
     g_state.songChannels = 0;
     g_state.songFrames = 0;
+    g_state.metronomeSamples.clear();
+    g_state.metronomeChannels = 0;
+    g_state.metronomeFrames = 0;
     g_state.pitchObservations.clear();
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();

@@ -53,7 +53,7 @@ Initialize
   -> Shutdown
 ```
 
-`StartSlowPracticeSession`은 채보 판정은 유지하지만 곡 파일을 출력에 섞지 않습니다.
+`StartSlowPracticeSession`은 채보 판정은 유지하고 곡 파일 대신 메트로놈을 출력에 섞습니다.
 초기 속도는 100%이며, `SetPracticeSpeed`로 25%~125% 범위에서 즉시 바꿀 수 있습니다.
 
 ### 운지 연습
@@ -493,8 +493,9 @@ int StartSession(void);
 int StartSlowPracticeSession(void);
 ```
 
-곡을 재생하지 않는 천천히 재생 연습 세션을 시작합니다. `LoadChart`를 먼저 호출해야 하며,
-채보와 카운트다운은 현재 연습 속도로 진행됩니다.
+곡 대신 준비된 메트로놈 효과음을 재생하는 천천히 재생 연습 세션을 시작합니다. `LoadChart`를
+먼저 호출해야 하며, 채보의 BPM과 `audioOffsetMs`에 맞춰 4분음표마다 클릭이 재생됩니다.
+채보와 메트로놈, 카운트다운은 현재 연습 속도로 진행됩니다.
 
 ### SetPracticeSpeed
 
@@ -645,7 +646,7 @@ int GetSongSyncInfo(SongSyncInfo *outInfo);
 로드된 채보의 곡 파일과 네이티브 오디오 시계에 동기화된 재생 시각을 가져옵니다.
 곡은 `LoadChart`에서 DLL 내부 PCM 버퍼로 읽히며, `StartSession` 뒤 카운트다운이 끝나면
 기타 입력과 믹싱되어 DLL의 RtAudio 출력과 DSP를 통과합니다. `StartSlowPracticeSession`에서는
-곡을 믹싱하지 않습니다.
+곡 대신 메트로놈을 믹싱합니다.
 
 | 필드 | 타입 | 의미 |
 | --- | --- | --- |

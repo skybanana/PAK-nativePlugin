@@ -53,6 +53,9 @@ struct PluginState {
     std::vector<MY_TYPE> songSamples;
     unsigned int songChannels;
     unsigned long long songFrames;
+    std::vector<MY_TYPE> metronomeSamples;
+    unsigned int metronomeChannels;
+    unsigned long long metronomeFrames;
     std::atomic<float> inputGain;
     std::atomic<float> outputGain;
     std::atomic<float> songVolume;

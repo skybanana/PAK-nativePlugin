@@ -76,7 +76,13 @@ int inoutRhythmGame(void *outputBuffer,
                         chartTimeMs,
                         chartTimeScale))
         state->droppedAudioBlocks.fetch_add(1);
-    processMonitorDsp(state, output, input, nBufferFrames, sessionStreamTime);
+    processMonitorDsp(state,
+                      output,
+                      input,
+                      nBufferFrames,
+                      sessionStreamTime,
+                      chartTimeMs,
+                      chartTimeScale);
     return 0;
 }
 
@@ -112,7 +118,7 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     // Loads a chart JSON file through ChartParser.
     if (!ChartParser::loadChart(chartPath, g_state.chart))
         return -1;
-    if (!loadSong(&g_state, chartPath))
+    if (!loadSong(&g_state, chartPath) || !loadMetronome(&g_state, chartPath))
         return -1;
 
     g_state.requestedSessionMode.store(SessionMode_Judge);
