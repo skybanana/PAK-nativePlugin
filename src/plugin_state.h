@@ -1,20 +1,21 @@
 #pragma once
 
-#include "audioQueue.h"
+#include <atomic>
+#include <vector>
+
 #include "ChartParser.h"
+#include "audioQueue.h"
 #include "eventQueue.h"
 #include "input.h"
 #include "judge.h"
 #include "main.h"
 
-#include <atomic>
-#include <vector>
 
 extern "C" {
 #include <aubio/aubio.h>
 }
 
-constexpr double COUNTDOWN_SECONDS = 5.0;
+constexpr double COUNTDOWN_SECONDS = 3.0;
 constexpr double COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000.0;
 constexpr double PITCH_SETTLE_MS = 80.0;
 constexpr double CHORD_SETTLE_MS = 160.0;
