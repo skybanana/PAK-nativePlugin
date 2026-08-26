@@ -74,6 +74,11 @@ struct AudioDriverInfo {
     char displayName[64];
 };
 
+struct AsioDriverInfo {
+    // Registered ASIO driver name used for direct ASIO selection.
+    char name[256];
+};
+
 struct AudioDeviceInfo {
     // RtAudio device ID used by InitializeWithAudioDriver.
     unsigned int id;
@@ -106,6 +111,15 @@ PLUGIN_API unsigned int GetAudioDriverCount(void);
 
 // Copies one compiled audio driver API by its zero-based list index.
 PLUGIN_API int GetAudioDriverInfo(unsigned int driverIndex, AudioDriverInfo *outInfo);
+
+// Returns registered ASIO driver names without opening any ASIO driver.
+PLUGIN_API unsigned int GetAsioDriverCount(void);
+
+// Copies one registered ASIO driver name by its zero-based list index.
+PLUGIN_API int GetAsioDriverInfo(unsigned int driverIndex, AsioDriverInfo *outInfo);
+
+// Opens one selected ASIO driver to read its available channel counts.
+PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName, AudioDeviceInfo *outInfo);
 
 // Returns the number of devices currently visible through an audio driver API.
 PLUGIN_API unsigned int GetAudioDeviceCount(unsigned int api);

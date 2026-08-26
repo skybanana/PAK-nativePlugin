@@ -21,6 +21,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # vcpkg toolchain이 연결되어 있다는 전제에서, Config package를 찾는다.
 find_package(RtAudio CONFIG REQUIRED)
+find_package(unofficial-asiosdk CONFIG REQUIRED)
 find_package(Aubio CONFIG REQUIRED)
 find_package(mpg123 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -77,6 +78,7 @@ endif()
 target_link_libraries(PAKNativePlugin
   PRIVATE
     RtAudio::rtaudio
+    unofficial::asiosdk::host
     Aubio::aubio
     MPG123::libmpg123
     nlohmann_json::nlohmann_json
@@ -184,3 +186,22 @@ add_executable(guitarInputTest
   "test/guitarInputTest.cpp"
 )
 add_dependencies(guitarInputTest PAKNativePlugin)
+
+# Yamaha Steinberg USB ASIO 연결 테스트
+add_executable(driverConnectTest
+  "test/driverConnectTest.cpp"
+)
+add_dependencies(driverConnectTest PAKNativePlugin)
+
+# ASIO SDK로 선택한 드라이버만 직접 초기화하는 연결 테스트
+add_executable(asioDirectConnectTest
+  "test/asioDirectConnectTest.cpp"
+)
+target_link_libraries(asioDirectConnectTest
+  PRIVATE
+    unofficial::asiosdk::host
+)
+target_compile_definitions(asioDirectConnectTest
+  PRIVATE
+    IEEE754_64FLOAT=1
+)

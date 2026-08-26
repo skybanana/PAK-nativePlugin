@@ -3,12 +3,20 @@
 #include <cstring>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "RtAudio.h"
+#include "asio.h"
+#include "asiodrivers.h"
 #include "audioQueue.h"
 #include "eventQueue.h"
 #include "song.h"
 
 #define FORMAT RTAUDIO_SINT16
+
+extern AsioDrivers *asioDrivers;
 
 int inoutRhythmGame(void *outputBuffer,
                     void *inputBuffer,
@@ -151,6 +159,102 @@ extern "C" PLUGIN_API int GetAudioDriverInfo(unsigned int driverIndex,
                  RtAudio::getApiDisplayName(apis[driverIndex]).c_str(),
                  sizeof(outInfo->displayName) - 1);
     return 0;
+}
+
+extern "C" PLUGIN_API unsigned int GetAsioDriverCount(void) {
+    // Returns registered ASIO driver names without loading or initializing a driver.
+#ifdef _WIN32
+    HKEY asioKey = nullptr;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\ASIO", 0, KEY_READ, &asioKey) != ERROR_SUCCESS)
+        return 0;
+
+    unsigned int count = 0;
+    char name[256] = {};
+    DWORD nameLength = sizeof(name);
+    while (RegEnumKeyExA(asioKey, count, name, &nameLength, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
+        ++count;
+        nameLength = sizeof(name);
+    }
+    RegCloseKey(asioKey);
+    return count;
+#else
+    return 0;
+#endif
+}
+
+extern "C" PLUGIN_API int GetAsioDriverInfo(unsigned int driverIndex,
+                                              AsioDriverInfo *outInfo) {
+    // Copies one registered ASIO driver name without loading or initializing it.
+#ifdef _WIN32
+    HKEY asioKey = nullptr;
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\ASIO", 0, KEY_READ, &asioKey) != ERROR_SUCCESS)
+        return -1;
+
+    *outInfo = {};
+    DWORD nameLength = sizeof(outInfo->name);
+    LONG result = RegEnumKeyExA(asioKey,
+                                driverIndex,
+                                outInfo->name,
+                                &nameLength,
+                                nullptr,
+                                nullptr,
+                                nullptr,
+                                nullptr);
+    RegCloseKey(asioKey);
+    return result == ERROR_SUCCESS ? 0 : -1;
+#else
+    (void)driverIndex;
+    (void)outInfo;
+    return -1;
+#endif
+}
+
+extern "C" PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName,
+                                                    AudioDeviceInfo *outInfo) {
+    // Opens only the selected ASIO driver to read its channel counts, then closes it.
+#ifdef _WIN32
+    asioDrivers = new AsioDrivers();
+    if (!asioDrivers->loadDriver(const_cast<char *>(driverName))) {
+        delete asioDrivers;
+        asioDrivers = nullptr;
+        return -1;
+    }
+
+    ASIODriverInfo info = {};
+    info.asioVersion = 2;
+    info.sysRef = GetDesktopWindow();
+    if (ASIOInit(&info) != ASE_OK) {
+        asioDrivers->removeCurrentDriver();
+        delete asioDrivers;
+        asioDrivers = nullptr;
+        return -1;
+    }
+
+    long inputChannels = 0;
+    long outputChannels = 0;
+    if (ASIOGetChannels(&inputChannels, &outputChannels) != ASE_OK) {
+        ASIOExit();
+        delete asioDrivers;
+        asioDrivers = nullptr;
+        return -1;
+    }
+
+    *outInfo = {};
+    std::strncpy(outInfo->name, info.name, sizeof(outInfo->name) - 1);
+    outInfo->inputChannels = (unsigned int)inputChannels;
+    outInfo->outputChannels = (unsigned int)outputChannels;
+    outInfo->duplexChannels = (unsigned int)(inputChannels < outputChannels
+                                                  ? inputChannels
+                                                  : outputChannels);
+    ASIOExit();
+    delete asioDrivers;
+    asioDrivers = nullptr;
+    return 0;
+#else
+    (void)driverName;
+    (void)outInfo;
+    return -1;
+#endif
 }
 
 extern "C" PLUGIN_API unsigned int GetAudioDeviceCount(unsigned int api) {
