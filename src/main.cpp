@@ -19,7 +19,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.8";
+    return "0.4.9";
 }
 
 int inoutAudioTest(void *outputBuffer,
@@ -173,6 +173,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.pitchObservations.clear();
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
+    g_state.lastGuitarInputEventAudioTimeMs.store(-g_state.guitarInputIntervalMs.load());
     if (g_state.onsetDetector)
         aubio_onset_reset(g_state.onsetDetector);
     preparePluginEventQueue(&g_state.eventQueue, 64);
@@ -317,6 +318,11 @@ extern "C" PLUGIN_API int RestartSession(void) {
 extern "C" PLUGIN_API void SetSongVolume(float volume) {
     // Updates the chart-song volume without changing the instrument monitor gain.
     g_state.songVolume.store(volume);
+}
+
+extern "C" PLUGIN_API void SetGuitarInputIntervalMs(double intervalMs) {
+    // Sets the minimum spacing between emitted guitar-control input events.
+    g_state.guitarInputIntervalMs.store(intervalMs);
 }
 
 extern "C" PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent) {

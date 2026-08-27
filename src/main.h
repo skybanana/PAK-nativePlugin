@@ -183,6 +183,9 @@ PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float lpfAlpha);
 // Sets the chart-song mix volume independently from monitor DSP gain.
 PLUGIN_API void SetSongVolume(float volume);
 
+// Sets the minimum interval between emitted guitar input events in milliseconds.
+PLUGIN_API void SetGuitarInputIntervalMs(double intervalMs);
+
 // Polls one pending judge event.
 PLUGIN_API int PollJudgeEvent(JudgeEvent *outEvent);
 
