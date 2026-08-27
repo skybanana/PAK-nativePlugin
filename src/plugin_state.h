@@ -61,6 +61,8 @@ struct PluginState {
     std::atomic<float> outputGain;
     std::atomic<float> songVolume;
     std::atomic<float> lpfAlpha;
+    std::atomic<bool> audioTestMode;
+    std::atomic<float> audioTestOutputLevelDb;
     std::atomic<bool> stopRequested;
     std::atomic<bool> gameStarted;
     std::atomic<bool> summaryFinished;

@@ -193,6 +193,12 @@ add_executable(driverConnectTest
 )
 add_dependencies(driverConnectTest PAKNativePlugin)
 
+# 출력 전용 테스트 톤 API 테스트
+add_executable(audioTestApiTest
+  "test/audioTestApiTest.cpp"
+)
+add_dependencies(audioTestApiTest PAKNativePlugin)
+
 # ASIO SDK로 선택한 드라이버만 직접 초기화하는 연결 테스트
 add_executable(asioDirectConnectTest
   "test/asioDirectConnectTest.cpp"

@@ -26,6 +26,13 @@ int inoutRhythmGame(void *outputBuffer,
                     RtAudioStreamStatus status,
                     void *data);
 
+int inoutAudioTest(void *outputBuffer,
+                   void *inputBuffer,
+                   unsigned int nBufferFrames,
+                   double streamTime,
+                   RtAudioStreamStatus status,
+                   void *data);
+
 static int initializeAudioDriver(RtAudio::Api api,
                                  unsigned int channels,
                                  unsigned int sampleRate,
@@ -57,6 +64,7 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.outputGain.store(0.5f);
     g_state.songVolume.store(1.0f);
     g_state.lpfAlpha.store(0.2f);
+    g_state.audioTestMode.store(false);
     g_state.stopRequested.store(true);
     g_state.requestedSessionMode.store(SessionMode_GuitarInput);
     g_state.sessionMode.store(SessionMode_None);
@@ -110,6 +118,45 @@ static int initializeAudioDriver(RtAudio::Api api,
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
     aubio_onset_set_threshold(g_state.onsetDetector, 0.3f);
     if (!initializeSongDecoder()) {
+        Shutdown();
+        return -1;
+    }
+    return 0;
+}
+
+extern "C" PLUGIN_API int InitializeAudioTest(unsigned int channels,
+                                                unsigned int sampleRate,
+                                                unsigned int inputDeviceId,
+                                                unsigned int outputDeviceId,
+                                                unsigned int inputOffset,
+                                                unsigned int outputOffset) {
+    // Opens a WASAPI pass-through stream without allocating session processing resources.
+    Shutdown();
+
+    g_adac = new RtAudio(RtAudio::WINDOWS_WASAPI);
+    g_adac->showWarnings(true);
+    g_state.channels = channels;
+    g_state.sampleRate = sampleRate;
+    g_state.bufferFrames = 128;
+    g_state.audioTestMode.store(true);
+    g_state.audioTestOutputLevelDb.store(-96.0f);
+
+    RtAudio::StreamParameters iParams, oParams;
+    iParams.deviceId = inputDeviceId == 0 ? g_adac->getDefaultInputDevice() : inputDeviceId;
+    iParams.nChannels = channels;
+    iParams.firstChannel = inputOffset;
+    oParams.deviceId = outputDeviceId == 0 ? g_adac->getDefaultOutputDevice() : outputDeviceId;
+    oParams.nChannels = channels;
+    oParams.firstChannel = outputOffset;
+    RtAudio::StreamOptions options;
+    if (g_adac->openStream(&oParams,
+                           &iParams,
+                           FORMAT,
+                           sampleRate,
+                           &g_state.bufferFrames,
+                           &inoutAudioTest,
+                           (void *)&g_state,
+                           &options)) {
         Shutdown();
         return -1;
     }

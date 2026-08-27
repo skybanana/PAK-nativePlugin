@@ -1,5 +1,6 @@
 #include "main.h"
 
+#include <cmath>
 #include <cstring>
 #include <thread>
 
@@ -18,7 +19,31 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.5";
+    return "0.4.6";
+}
+
+int inoutAudioTest(void *outputBuffer,
+                   void *inputBuffer,
+                   unsigned int nBufferFrames,
+                   double,
+                   RtAudioStreamStatus,
+                   void *data) {
+    // Passes the connected instrument input to output and reports its RMS level in dBFS.
+    PluginState *state = (PluginState *)data;
+    MY_TYPE *input = (MY_TYPE *)inputBuffer;
+    MY_TYPE *output = (MY_TYPE *)outputBuffer;
+    double sumSquares = 0.0;
+    unsigned int sampleCount = nBufferFrames * state->channels;
+
+    for (unsigned int index = 0; index < sampleCount; ++index) {
+        float sample = (float)input[index] / 32768.0f;
+        output[index] = input[index];
+        sumSquares += sample * sample;
+    }
+
+    float rms = std::sqrt((float)(sumSquares / sampleCount));
+    state->audioTestOutputLevelDb.store(rms > 0.0f ? 20.0f * std::log10(rms) : -96.0f);
+    return 0;
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -155,7 +180,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
 
 extern "C" PLUGIN_API int StartSession(void) {
     // Starts the audio stream and the plugin-owned judge thread.
-    if (g_adac == nullptr)
+    if (g_adac == nullptr || g_state.audioTestMode.load())
         return -1;
     if (g_adac->isStreamOpen() == false)
         return -1;
@@ -176,7 +201,7 @@ extern "C" PLUGIN_API int StartSession(void) {
 
 extern "C" PLUGIN_API int StartSlowPracticeSession(void) {
     // Starts chart judgment five seconds before the first note without song mixing.
-    if (g_adac == nullptr || g_adac->isStreamOpen() == false)
+    if (g_adac == nullptr || g_state.audioTestMode.load() || g_adac->isStreamOpen() == false)
         return -1;
 
     ResetSessionTime();
@@ -205,7 +230,7 @@ extern "C" PLUGIN_API void SetPracticeSpeed(float speed) {
 
 extern "C" PLUGIN_API int StartFingeringPracticeSession(void) {
     // Starts note-by-note judgment without song playback or timing-based misses.
-    if (g_adac == nullptr || g_adac->isStreamOpen() == false)
+    if (g_adac == nullptr || g_state.audioTestMode.load() || g_adac->isStreamOpen() == false)
         return -1;
 
     ResetSessionTime();
@@ -236,6 +261,33 @@ extern "C" PLUGIN_API void SetDSPParams(float inputGain, float outputGain, float
     g_state.inputGain.store(inputGain);
     g_state.outputGain.store(outputGain);
     g_state.lpfAlpha.store(lpfAlpha);
+}
+
+extern "C" PLUGIN_API int StartAudioTest(void) {
+    // Starts the configured instrument input-to-output pass-through stream.
+    if (g_adac == nullptr || !g_state.audioTestMode.load() ||
+        g_adac->isStreamOpen() == false || g_adac->isStreamRunning())
+        return -1;
+
+    if (g_adac->startStream())
+        return -1;
+    return 0;
+}
+
+extern "C" PLUGIN_API void StopAudioTest(void) {
+    // Stops the instrument input-to-output pass-through stream.
+    if (g_state.audioTestMode.load() && g_adac != nullptr && g_adac->isStreamRunning())
+        g_adac->stopStream();
+    g_state.audioTestOutputLevelDb.store(-96.0f);
+}
+
+extern "C" PLUGIN_API int GetAudioTestOutputLevelDb(float *outLevelDb) {
+    // Copies the latest pass-through output RMS level in dBFS for the client.
+    if (g_adac == nullptr || !g_state.audioTestMode.load())
+        return -1;
+
+    *outLevelDb = g_state.audioTestOutputLevelDb.load();
+    return 0;
 }
 
 extern "C" PLUGIN_API void PauseSession(void) {

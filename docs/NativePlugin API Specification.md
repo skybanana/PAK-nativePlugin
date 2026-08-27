@@ -53,6 +53,19 @@ Initialize
   -> Shutdown
 ```
 
+### 기타 연결 테스트
+
+```text
+InitializeAudioTest
+  -> StartAudioTest
+      -> GetAudioTestOutputLevelDb 반복 호출
+  -> StopAudioTest
+  -> Shutdown
+```
+
+기타 입력을 출력 장치로 그대로 전달해 연결과 소리를 확인합니다. 이 경로에서는 판정 스레드,
+피치 분석, 곡 재생, 모니터 DSP를 시작하지 않습니다. 세션 API와 동시에 사용할 수 없습니다.
+
 `StartSlowPracticeSession`은 채보 판정은 유지하고 곡 파일 대신 메트로놈을 출력에 섞습니다.
 초기 속도는 100%이며, `SetPracticeSpeed`로 25%~125% 범위에서 즉시 바꿀 수 있습니다.
 
@@ -242,6 +255,24 @@ public static class PakNativePlugin
         uint inputOffset,
         uint outputOffset);
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int InitializeAudioTest(
+        uint channels,
+        uint sampleRate,
+        uint inputDeviceId,
+        uint outputDeviceId,
+        uint inputOffset,
+        uint outputOffset);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int StartAudioTest();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void StopAudioTest();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetAudioTestOutputLevelDb(out float outLevelDb);
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern int LoadChart(
         [MarshalAs(UnmanagedType.LPStr)] string chartPath);
@@ -412,7 +443,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"0.3.0"`입니다.
+현재 반환값은 `"0.4.6"`입니다.
 
 ### Initialize
 
@@ -441,6 +472,64 @@ int Initialize(
 
 - `0`: 성공
 - `-1`: 오디오 스트림 생성 실패
+
+### InitializeAudioTest
+
+```c
+int InitializeAudioTest(
+    unsigned int channels,
+    unsigned int sampleRate,
+    unsigned int inputDeviceId,
+    unsigned int outputDeviceId,
+    unsigned int inputOffset,
+    unsigned int outputOffset);
+```
+
+기타 연결을 확인하기 위한 입력-출력 패스스루 스트림을 초기화합니다. `inputDeviceId`와
+`outputDeviceId`에는 `GetAudioDeviceInfo`로 얻은 `id`를 전달하며, `0`은 각 기본 장치입니다.
+입력 PCM은 DSP 처리 없이 출력으로 복사됩니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 오디오 스트림 생성 실패
+
+### StartAudioTest
+
+```c
+int StartAudioTest(void);
+```
+
+`InitializeAudioTest`로 준비한 패스스루 스트림을 시작합니다. 기타를 연주하면 해당 입력이
+선택한 출력 장치로 재생됩니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 오디오 테스트가 초기화되지 않았거나 스트림 시작 실패
+
+### StopAudioTest
+
+```c
+void StopAudioTest(void);
+```
+
+실행 중인 기타 연결 테스트 스트림을 정지합니다.
+
+### GetAudioTestOutputLevelDb
+
+```c
+int GetAudioTestOutputLevelDb(float *outLevelDb);
+```
+
+최근 패스스루 출력 버퍼의 RMS 레벨을 dBFS로 복사합니다. 기타를 치지 않아 입력이 무음이면
+`-96 dBFS`이며, 기타 입력이 들어오면 값이 커집니다. 이 값은 실제 스피커 음압(dB SPL)이 아닌
+디지털 PCM 신호 레벨입니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 오디오 테스트가 초기화되지 않음
 
 ### LoadChart
 

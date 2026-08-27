@@ -123,6 +123,23 @@ PLUGIN_API int InitializeWithAudioDevice(unsigned int channels,
                                          unsigned int inputOffset,
                                          unsigned int outputOffset);
 
+// Opens an input-to-output pass-through stream without session processing.
+PLUGIN_API int InitializeAudioTest(unsigned int channels,
+                                   unsigned int sampleRate,
+                                   unsigned int inputDeviceId,
+                                   unsigned int outputDeviceId,
+                                   unsigned int inputOffset,
+                                   unsigned int outputOffset);
+
+// Starts pass-through audio testing for the connected instrument input.
+PLUGIN_API int StartAudioTest(void);
+
+// Stops pass-through audio testing.
+PLUGIN_API void StopAudioTest(void);
+
+// Copies the current pass-through output level in dBFS.
+PLUGIN_API int GetAudioTestOutputLevelDb(float *outLevelDb);
+
 // Loads a chart JSON file for the next session.
 PLUGIN_API int LoadChart(const char *chartPath);
 
