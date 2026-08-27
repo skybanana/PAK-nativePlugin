@@ -73,7 +73,7 @@ struct AsioDriverInfo {
 };
 
 struct AudioDeviceInfo {
-    // WASAPI device ID used by InitializeWithAudioDevice.
+    // Audio backend device ID used by the device initialization APIs.
     unsigned int id;
     char name[256];
     unsigned int inputChannels;
@@ -107,6 +107,13 @@ PLUGIN_API int GetAsioDriverInfo(unsigned int driverIndex, AsioDriverInfo *outIn
 
 // Opens one selected ASIO driver and returns its available channel counts.
 PLUGIN_API int SelectAsioDriver(const char *driverName, AudioDeviceInfo *outInfo);
+
+// Initializes a stream through the named ASIO driver using its input/output offsets.
+PLUGIN_API int InitializeWithAsioDriver(const char *driverName,
+                                        unsigned int channels,
+                                        unsigned int sampleRate,
+                                        unsigned int inputOffset,
+                                        unsigned int outputOffset);
 
 // Returns the number of devices currently visible through Windows WASAPI.
 PLUGIN_API unsigned int GetAudioDeviceCount(void);

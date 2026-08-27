@@ -19,7 +19,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.7";
+    return "0.4.8";
 }
 
 int inoutAudioTest(void *outputBuffer,

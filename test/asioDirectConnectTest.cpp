@@ -3,6 +3,7 @@
 #include <atomic>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -41,7 +42,7 @@ HWND createAsioHostWindow(void) {
 }
 
 void processBuffer(long index) {
-    // Copies Yamaha input channel 1 to output channel 1 for one ASIO buffer.
+    // Copies the selected ASIO driver's input channel 1 to output channel 1 for one buffer.
     std::memcpy(g_buffers[1].buffers[index],
                 g_buffers[0].buffers[index],
                 (size_t)g_bufferFrames * sizeof(int32_t));
@@ -101,10 +102,9 @@ ASIOCallbacks g_callbacks = {
     bufferSwitchTimeInfo};
 
 int main(int argc, char *argv[]) {
-    // Initializes one selected ASIO driver directly through the ASIO SDK.
-    std::string targetName = "Yamaha Steinberg USB ASIO";
-    if (argc > 1)
-        targetName = argv[1];
+    // Lists registered ASIO drivers, then initializes the driver chosen by its list number.
+    (void)argc;
+    (void)argv;
 
     HWND hostWindow = createAsioHostWindow();
     if (hostWindow == nullptr) {
@@ -114,24 +114,21 @@ int main(int argc, char *argv[]) {
 
     asioDrivers = new AsioDrivers();
     std::cerr << "Enumerating registered ASIO drivers...\n";
-    bool found = false;
+    std::vector<std::string> driverNames;
     for (long index = 0; index < asioDrivers->asioGetNumDev(); ++index) {
         char name[128] = {};
         if (asioDrivers->asioGetDriverName((int)index, name, sizeof(name)) != 0)
             continue;
 
-        std::cerr << "ASIO driver: " << name << "\n";
-        if (targetName == name)
-            found = true;
+        driverNames.push_back(name);
+        std::cout << driverNames.size() - 1 << ". " << name << "\n";
     }
 
-    if (!found) {
-        std::cerr << "Selected ASIO driver was not registered: " << targetName << "\n";
-        delete asioDrivers;
-        asioDrivers = nullptr;
-        DestroyWindow(hostWindow);
-        return 1;
-    }
+    std::cout << "Select ASIO driver number: ";
+    unsigned int driverIndex = 0;
+    std::cin >> driverIndex;
+    std::string targetName = driverNames[driverIndex];
+    std::cerr << "Connecting ASIO driver: " << targetName << "\n";
 
     if (!asioDrivers->loadDriver(const_cast<char *>(targetName.c_str()))) {
         std::cerr << "Failed to load ASIO driver: " << targetName << "\n";

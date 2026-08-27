@@ -276,6 +276,40 @@ extern "C" PLUGIN_API int SelectAsioDriver(const char *driverName,
 #endif
 }
 
+extern "C" PLUGIN_API int InitializeWithAsioDriver(const char *driverName,
+                                                      unsigned int channels,
+                                                      unsigned int sampleRate,
+                                                      unsigned int inputOffset,
+                                                      unsigned int outputOffset) {
+    // Initializes a duplex stream through the ASIO driver selected by its registered name.
+#ifdef _WIN32
+    releaseSelectedAsioDriver();
+
+    RtAudio audio(RtAudio::WINDOWS_ASIO);
+    std::vector<unsigned int> deviceIds = audio.getDeviceIds();
+    for (unsigned int deviceId : deviceIds) {
+        RtAudio::DeviceInfo device = audio.getDeviceInfo(deviceId);
+        if (device.name == driverName) {
+            return initializeAudioDriver(RtAudio::WINDOWS_ASIO,
+                                         channels,
+                                         sampleRate,
+                                         deviceId,
+                                         deviceId,
+                                         inputOffset,
+                                         outputOffset);
+        }
+    }
+    return -1;
+#else
+    (void)driverName;
+    (void)channels;
+    (void)sampleRate;
+    (void)inputOffset;
+    (void)outputOffset;
+    return -1;
+#endif
+}
+
 void releaseSelectedAsioDriver(void) {
     // Closes the ASIO driver retained after SelectAsioDriver.
 #ifdef _WIN32
