@@ -80,33 +80,33 @@ Initialize
 
 ### 오디오 옵션 화면
 
-RtAudio 장치와 ASIO 드라이버는 별도 경로로 조회합니다.
+옵션 화면은 WASAPI 장치와 ASIO 드라이버를 별도 경로로 조회합니다. 기본 연결은 Windows
+기본 WASAPI 장치이며, ASIO 드라이버는 사용자가 명시적으로 선택할 때만 엽니다.
 
 ```text
-# WASAPI 등 RtAudio 장치
-GetAudioDriverCount
-  -> GetAudioDriverInfo(index)
-  -> GetAudioDeviceCount(api)
-  -> GetAudioDeviceInfo(api, index)
-  -> InitializeWithAudioDriver(...)
+# WASAPI 장치
+GetAudioDeviceCount
+  -> GetAudioDeviceInfo(index)
+  -> InitializeWithAudioDevice(...)
 
 # ASIO 드라이버
 GetAsioDriverCount
   -> GetAsioDriverInfo(index)              // 등록 이름만 조회, 드라이버를 열지 않음
-  -> GetAsioDriverDeviceInfo(name)         // 사용자가 고른 드라이버 하나만 열어 채널 수 조회
+  -> SelectAsioDriver(name)                // 선택한 드라이버를 열고 채널 수 조회
 ```
 
-`GetAudioDeviceInfo`의 `id`는 `InitializeWithAudioDriver`의 `inputDeviceId`와
+`GetAudioDeviceInfo`의 `id`는 `InitializeWithAudioDevice`의 `inputDeviceId`와
 `outputDeviceId`에 그대로 전달합니다. `inputChannels`는 해당 장치의 입력 채널 수이며,
 UI에서는 1부터 `inputChannels`까지 표시합니다. 사용자가 고른 n번째 채널은
 `channels = 1`, `inputOffset = n - 1`로 초기화합니다. RtAudio는 물리 입력의 별도 이름을
 제공하지 않으므로 채널 표시는 `Input 1`, `Input 2`처럼 순번으로 구성합니다.
 
-ASIO 목록에는 `GetAudioDeviceCount(ASIO)`와 `GetAudioDeviceInfo(ASIO, ...)`를 사용하면
-안 됩니다. RtAudio가 등록된 ASIO 드라이버를 초기화하며 열거하기 때문입니다.
+ASIO 목록에는 `GetAudioDeviceCount`와 `GetAudioDeviceInfo`를 사용하면 안 됩니다.
+두 함수는 WASAPI 장치만 조회합니다.
 `GetAsioDriverInfo`는 Windows 레지스트리의 등록 이름만 읽습니다.
-`GetAsioDriverDeviceInfo`는 선택한 드라이버만 `ASIOInit`으로 열어 채널 수를 읽은 뒤
-즉시 종료합니다. 직접 ASIO 스트림 초기화 API는 별도로 추가될 예정입니다.
+`SelectAsioDriver`는 선택한 드라이버만 `ASIOInit`으로 열어 채널 수를 반환하고, 다음
+드라이버 선택 또는 `Shutdown`까지 열린 상태로 유지합니다. 직접 ASIO 스트림 초기화 API는
+별도로 추가될 예정입니다.
 
 곡 음량은 `SetSongVolume`으로 설정합니다. 이는 기타 입력의 모니터 게인과 별개이며,
 기존 `SetDSPParams`의 `inputGain`과 `outputGain`은 그대로 유지됩니다.
@@ -182,18 +182,6 @@ public static class PakNativePlugin
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-    public struct AudioDriverInfo
-    {
-        public uint api;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string name;
-
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string displayName;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct AsioDriverInfo
     {
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
@@ -229,31 +217,24 @@ public static class PakNativePlugin
         uint outputOffset);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern uint GetAudioDriverCount();
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int GetAudioDriverInfo(uint driverIndex, out AudioDriverInfo outInfo);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern uint GetAsioDriverCount();
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int GetAsioDriverInfo(uint driverIndex, out AsioDriverInfo outInfo);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    public static extern int GetAsioDriverDeviceInfo(
+    public static extern int SelectAsioDriver(
         [MarshalAs(UnmanagedType.LPStr)] string driverName,
         out AudioDeviceInfo outInfo);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern uint GetAudioDeviceCount(uint api);
+    public static extern uint GetAudioDeviceCount();
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int GetAudioDeviceInfo(uint api, uint deviceIndex, out AudioDeviceInfo outInfo);
+    public static extern int GetAudioDeviceInfo(uint deviceIndex, out AudioDeviceInfo outInfo);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int InitializeWithAudioDriver(
-        uint api,
+    public static extern int InitializeWithAudioDevice(
         uint channels,
         uint sampleRate,
         uint inputDeviceId,

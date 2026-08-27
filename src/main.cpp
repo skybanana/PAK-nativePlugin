@@ -10,6 +10,7 @@
 #include "input.h"
 #include "judge.h"
 #include "song.h"
+#include "setting.h"
 
 RtAudio *g_adac = nullptr;
 PluginState g_state = {};
@@ -17,7 +18,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.4";
+    return "0.4.5";
 }
 
 int inoutRhythmGame(void *outputBuffer,
@@ -313,7 +314,7 @@ extern "C" PLUGIN_API int GetSongSyncInfo(SongSyncInfo *outInfo) {
 }
 
 extern "C" PLUGIN_API void Shutdown(void) {
-    // Releases the stream, judge thread, and aubio resources.
+    // Releases the stream, selected ASIO driver, judge thread, and aubio resources.
     StopSession();
     if (g_adac != nullptr) {
         if (g_adac->isStreamOpen())
@@ -322,6 +323,7 @@ extern "C" PLUGIN_API void Shutdown(void) {
         g_adac = nullptr;
     }
     releaseAubio(&g_state);
+    releaseSelectedAsioDriver();
     shutdownSongDecoder();
     aubio_cleanup();
 }

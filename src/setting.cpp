@@ -17,6 +17,7 @@
 #define FORMAT RTAUDIO_SINT16
 
 extern AsioDrivers *asioDrivers;
+static bool g_isAsioDriverSelected = false;
 
 int inoutRhythmGame(void *outputBuffer,
                     void *inputBuffer,
@@ -121,44 +122,18 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
                                       unsigned int outputDevice,
                                       unsigned int inputOffset,
                                       unsigned int outputOffset) {
-    // Initializes through the default driver using the legacy device-list indexes.
-    RtAudio audio;
+    // Initializes through Windows WASAPI so Windows default devices are used.
+    RtAudio audio(RtAudio::WINDOWS_WASAPI);
     std::vector<unsigned int> deviceIds = audio.getDeviceIds();
     unsigned int inputDeviceId = inputDevice == 0 ? 0 : deviceIds[inputDevice];
     unsigned int outputDeviceId = outputDevice == 0 ? 0 : deviceIds[outputDevice];
-    return initializeAudioDriver(RtAudio::UNSPECIFIED,
+    return initializeAudioDriver(RtAudio::WINDOWS_WASAPI,
                                  channels,
                                  sampleRate,
                                  inputDeviceId,
                                  outputDeviceId,
                                  inputOffset,
                                  outputOffset);
-}
-
-extern "C" PLUGIN_API unsigned int GetAudioDriverCount(void) {
-    // Returns the number of compiled RtAudio APIs available for selection.
-    std::vector<RtAudio::Api> apis;
-    RtAudio::getCompiledApi(apis);
-    return (unsigned int)apis.size();
-}
-
-extern "C" PLUGIN_API int GetAudioDriverInfo(unsigned int driverIndex,
-                                              AudioDriverInfo *outInfo) {
-    // Copies the API identifier and names for one compiled audio driver.
-    std::vector<RtAudio::Api> apis;
-    RtAudio::getCompiledApi(apis);
-    if (driverIndex >= apis.size())
-        return -1;
-
-    *outInfo = {};
-    outInfo->api = (unsigned int)apis[driverIndex];
-    std::strncpy(outInfo->name,
-                 RtAudio::getApiName(apis[driverIndex]).c_str(),
-                 sizeof(outInfo->name) - 1);
-    std::strncpy(outInfo->displayName,
-                 RtAudio::getApiDisplayName(apis[driverIndex]).c_str(),
-                 sizeof(outInfo->displayName) - 1);
-    return 0;
 }
 
 extern "C" PLUGIN_API unsigned int GetAsioDriverCount(void) {
@@ -209,10 +184,11 @@ extern "C" PLUGIN_API int GetAsioDriverInfo(unsigned int driverIndex,
 #endif
 }
 
-extern "C" PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName,
-                                                    AudioDeviceInfo *outInfo) {
-    // Opens only the selected ASIO driver to read its channel counts, then closes it.
+extern "C" PLUGIN_API int SelectAsioDriver(const char *driverName,
+                                             AudioDeviceInfo *outInfo) {
+    // Opens the selected ASIO driver and returns its available channel counts.
 #ifdef _WIN32
+    releaseSelectedAsioDriver();
     asioDrivers = new AsioDrivers();
     if (!asioDrivers->loadDriver(const_cast<char *>(driverName))) {
         delete asioDrivers;
@@ -224,9 +200,7 @@ extern "C" PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName,
     info.asioVersion = 2;
     info.sysRef = GetDesktopWindow();
     if (ASIOInit(&info) != ASE_OK) {
-        asioDrivers->removeCurrentDriver();
-        delete asioDrivers;
-        asioDrivers = nullptr;
+        releaseSelectedAsioDriver();
         return -1;
     }
 
@@ -246,9 +220,7 @@ extern "C" PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName,
     outInfo->duplexChannels = (unsigned int)(inputChannels < outputChannels
                                                   ? inputChannels
                                                   : outputChannels);
-    ASIOExit();
-    delete asioDrivers;
-    asioDrivers = nullptr;
+    g_isAsioDriverSelected = true;
     return 0;
 #else
     (void)driverName;
@@ -257,17 +229,29 @@ extern "C" PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName,
 #endif
 }
 
-extern "C" PLUGIN_API unsigned int GetAudioDeviceCount(unsigned int api) {
-    // Returns devices currently discoverable through the selected audio driver.
-    RtAudio audio((RtAudio::Api)api);
+void releaseSelectedAsioDriver(void) {
+    // Closes the ASIO driver retained after SelectAsioDriver.
+#ifdef _WIN32
+    if (g_isAsioDriverSelected)
+        ASIOExit();
+    if (asioDrivers != nullptr) {
+        delete asioDrivers;
+        asioDrivers = nullptr;
+    }
+    g_isAsioDriverSelected = false;
+#endif
+}
+
+extern "C" PLUGIN_API unsigned int GetAudioDeviceCount(void) {
+    // Returns devices currently discoverable through Windows WASAPI.
+    RtAudio audio(RtAudio::WINDOWS_WASAPI);
     return audio.getDeviceCount();
 }
 
-extern "C" PLUGIN_API int GetAudioDeviceInfo(unsigned int api,
-                                              unsigned int deviceIndex,
+extern "C" PLUGIN_API int GetAudioDeviceInfo(unsigned int deviceIndex,
                                               AudioDeviceInfo *outInfo) {
-    // Copies device IDs, names, and available input/output channel counts.
-    RtAudio audio((RtAudio::Api)api);
+    // Copies one WASAPI device ID, name, and available channel counts.
+    RtAudio audio(RtAudio::WINDOWS_WASAPI);
     std::vector<unsigned int> deviceIds = audio.getDeviceIds();
     if (deviceIndex >= deviceIds.size())
         return -1;
@@ -285,15 +269,14 @@ extern "C" PLUGIN_API int GetAudioDeviceInfo(unsigned int api,
     return 0;
 }
 
-extern "C" PLUGIN_API int InitializeWithAudioDriver(unsigned int api,
-                                                      unsigned int channels,
+extern "C" PLUGIN_API int InitializeWithAudioDevice(unsigned int channels,
                                                       unsigned int sampleRate,
                                                       unsigned int inputDeviceId,
                                                       unsigned int outputDeviceId,
                                                       unsigned int inputOffset,
                                                       unsigned int outputOffset) {
-    // Initializes through the selected driver using IDs returned by GetAudioDeviceInfo.
-    return initializeAudioDriver((RtAudio::Api)api,
+    // Initializes through WASAPI using IDs returned by GetAudioDeviceInfo.
+    return initializeAudioDriver(RtAudio::WINDOWS_WASAPI,
                                  channels,
                                  sampleRate,
                                  inputDeviceId,

@@ -67,20 +67,13 @@ struct SongSyncInfo {
     double songTimeMs;
 };
 
-struct AudioDriverInfo {
-    // RtAudio API value used by InitializeWithAudioDriver.
-    unsigned int api;
-    char name[64];
-    char displayName[64];
-};
-
 struct AsioDriverInfo {
     // Registered ASIO driver name used for direct ASIO selection.
     char name[256];
 };
 
 struct AudioDeviceInfo {
-    // RtAudio device ID used by InitializeWithAudioDriver.
+    // WASAPI device ID used by InitializeWithAudioDevice.
     unsigned int id;
     char name[256];
     unsigned int inputChannels;
@@ -106,32 +99,24 @@ PLUGIN_API int Initialize(unsigned int channels,
                           unsigned int inputOffset,
                           unsigned int outputOffset);
 
-// Returns the number of audio driver APIs compiled into the plugin.
-PLUGIN_API unsigned int GetAudioDriverCount(void);
-
-// Copies one compiled audio driver API by its zero-based list index.
-PLUGIN_API int GetAudioDriverInfo(unsigned int driverIndex, AudioDriverInfo *outInfo);
-
 // Returns registered ASIO driver names without opening any ASIO driver.
 PLUGIN_API unsigned int GetAsioDriverCount(void);
 
 // Copies one registered ASIO driver name by its zero-based list index.
 PLUGIN_API int GetAsioDriverInfo(unsigned int driverIndex, AsioDriverInfo *outInfo);
 
-// Opens one selected ASIO driver to read its available channel counts.
-PLUGIN_API int GetAsioDriverDeviceInfo(const char *driverName, AudioDeviceInfo *outInfo);
+// Opens one selected ASIO driver and returns its available channel counts.
+PLUGIN_API int SelectAsioDriver(const char *driverName, AudioDeviceInfo *outInfo);
 
-// Returns the number of devices currently visible through an audio driver API.
-PLUGIN_API unsigned int GetAudioDeviceCount(unsigned int api);
+// Returns the number of devices currently visible through Windows WASAPI.
+PLUGIN_API unsigned int GetAudioDeviceCount(void);
 
-// Copies one device by its zero-based list index. inputChannels is the selectable input-channel count.
-PLUGIN_API int GetAudioDeviceInfo(unsigned int api,
-                                  unsigned int deviceIndex,
+// Copies one WASAPI device by its zero-based list index.
+PLUGIN_API int GetAudioDeviceInfo(unsigned int deviceIndex,
                                   AudioDeviceInfo *outInfo);
 
-// Initializes a stream through a selected audio driver and RtAudio device IDs.
-PLUGIN_API int InitializeWithAudioDriver(unsigned int api,
-                                         unsigned int channels,
+// Initializes a stream through WASAPI device IDs.
+PLUGIN_API int InitializeWithAudioDevice(unsigned int channels,
                                          unsigned int sampleRate,
                                          unsigned int inputDeviceId,
                                          unsigned int outputDeviceId,

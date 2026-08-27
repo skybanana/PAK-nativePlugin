@@ -187,7 +187,7 @@ add_executable(guitarInputTest
 )
 add_dependencies(guitarInputTest PAKNativePlugin)
 
-# Yamaha Steinberg USB ASIO 연결 테스트
+# WASAPI 장치 연결 테스트
 add_executable(driverConnectTest
   "test/driverConnectTest.cpp"
 )

@@ -14,12 +14,9 @@ struct PluginApi {
 #ifdef _WIN32
     HMODULE module;
 #endif
-    unsigned int (*GetAudioDriverCount)(void);
-    int (*GetAudioDriverInfo)(unsigned int, AudioDriverInfo *);
-    unsigned int (*GetAudioDeviceCount)(unsigned int);
-    int (*GetAudioDeviceInfo)(unsigned int, unsigned int, AudioDeviceInfo *);
-    int (*InitializeWithAudioDriver)(unsigned int,
-                                     unsigned int,
+    unsigned int (*GetAudioDeviceCount)(void);
+    int (*GetAudioDeviceInfo)(unsigned int, AudioDeviceInfo *);
+    int (*InitializeWithAudioDevice)(unsigned int,
                                      unsigned int,
                                      unsigned int,
                                      unsigned int,
@@ -49,18 +46,16 @@ bool loadPluginFunction(PluginApi *plugin, const char *name, FunctionType *outFu
 }
 
 bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
-    // Opens the plugin DLL and binds the audio-driver APIs used by this test.
+    // Opens the plugin DLL and binds the WASAPI device APIs used by this test.
 #ifdef _WIN32
     *plugin = {};
     plugin->module = LoadLibraryA(dllPath.c_str());
     if (plugin->module == nullptr)
         return false;
 
-    return loadPluginFunction(plugin, "GetAudioDriverCount", &plugin->GetAudioDriverCount) &&
-           loadPluginFunction(plugin, "GetAudioDriverInfo", &plugin->GetAudioDriverInfo) &&
-           loadPluginFunction(plugin, "GetAudioDeviceCount", &plugin->GetAudioDeviceCount) &&
+    return loadPluginFunction(plugin, "GetAudioDeviceCount", &plugin->GetAudioDeviceCount) &&
            loadPluginFunction(plugin, "GetAudioDeviceInfo", &plugin->GetAudioDeviceInfo) &&
-           loadPluginFunction(plugin, "InitializeWithAudioDriver", &plugin->InitializeWithAudioDriver) &&
+           loadPluginFunction(plugin, "InitializeWithAudioDevice", &plugin->InitializeWithAudioDevice) &&
            loadPluginFunction(plugin, "Shutdown", &plugin->Shutdown);
 #else
     (void)dllPath;
@@ -98,55 +93,37 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    unsigned int asioApi = 0;
-    bool foundAsio = false;
-    for (unsigned int index = 0; index < plugin.GetAudioDriverCount(); ++index) {
-        AudioDriverInfo driver = {};
-        if (plugin.GetAudioDriverInfo(index, &driver) == 0 &&
-            std::strcmp(driver.name, "asio") == 0) {
-            asioApi = driver.api;
-            foundAsio = true;
-            break;
-        }
-    }
-
-    if (!foundAsio) {
-        std::cerr << "ASIO is not compiled into PAKNativePlugin.dll.\n";
-        unloadPlugin(&plugin);
-        return 1;
-    }
-
-    AudioDeviceInfo yamaha = {};
-    bool foundYamaha = false;
-    unsigned int deviceCount = plugin.GetAudioDeviceCount(asioApi);
+    AudioDeviceInfo deviceToConnect = {};
+    bool foundDeviceToConnect = false;
+    unsigned int deviceCount = plugin.GetAudioDeviceCount();
     for (unsigned int index = 0; index < deviceCount; ++index) {
         AudioDeviceInfo device = {};
-        if (plugin.GetAudioDeviceInfo(asioApi, index, &device) == 0)
-            std::cout << "ASIO driver: " << device.name
+        if (plugin.GetAudioDeviceInfo(index, &device) == 0) {
+            std::cout << "WASAPI device: " << device.name
                       << " (input " << device.inputChannels
                       << ", output " << device.outputChannels << ")\n";
-
-        if (std::strcmp(device.name, "Yamaha Steinberg USB ASIO") == 0) {
-            yamaha = device;
-            foundYamaha = true;
+            if (device.inputChannels > inputOffset && device.outputChannels > outputOffset) {
+                deviceToConnect = device;
+                foundDeviceToConnect = true;
+                break;
+            }
         }
     }
 
-    if (!foundYamaha) {
-        std::cerr << "Yamaha Steinberg USB ASIO was not selectable.\n"
-                  << "RtAudio prints the ASIO driver initialization reason above.\n";
+    if (!foundDeviceToConnect) {
+        std::cerr << "No WASAPI device supports the requested input/output channels.\n";
         unloadPlugin(&plugin);
         return 1;
     }
 
-    std::cout << "Connecting Yamaha Steinberg USB ASIO: input channel " << inputOffset + 1
+    std::cout << "Connecting WASAPI device " << deviceToConnect.name
+              << ": input channel " << inputOffset + 1
               << ", output channel " << outputOffset + 1
               << ", " << sampleRate << " Hz\n";
-    int result = plugin.InitializeWithAudioDriver(asioApi,
-                                                   1,
+    int result = plugin.InitializeWithAudioDevice(1,
                                                    sampleRate,
-                                                   yamaha.id,
-                                                   yamaha.id,
+                                                   deviceToConnect.id,
+                                                   deviceToConnect.id,
                                                    inputOffset,
                                                    outputOffset);
     if (result != 0) {
