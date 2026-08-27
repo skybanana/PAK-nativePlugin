@@ -64,7 +64,7 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.outputGain.store(0.5f);
     g_state.songVolume.store(1.0f);
     g_state.lpfAlpha.store(0.2f);
-    g_state.audioTestMode.store(false);
+    g_state.audioTestMode = false;
     g_state.stopRequested.store(true);
     g_state.requestedSessionMode.store(SessionMode_GuitarInput);
     g_state.sessionMode.store(SessionMode_None);
@@ -138,7 +138,7 @@ extern "C" PLUGIN_API int InitializeAudioTest(unsigned int channels,
     g_state.channels = channels;
     g_state.sampleRate = sampleRate;
     g_state.bufferFrames = 128;
-    g_state.audioTestMode.store(true);
+    g_state.audioTestMode = true;
     g_state.audioTestOutputLevelDb.store(-96.0f);
 
     RtAudio::StreamParameters iParams, oParams;
