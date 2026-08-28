@@ -208,6 +208,7 @@ int main(int argc, char *argv[]) {
             std::cout << "Queue | consumed " << consumedJudgeEvents << " | dropped "
                       << stats.droppedJudgeEvents << " | "
                       << (stats.droppedJudgeEvents > 0 ? "full" : "not full")
+                      << "\nAudio blocks | dropped " << stats.droppedAudioBlocks
                       << "\nOnset | detected " << diagnostics.detectedOnsets << " | accepted "
                       << diagnostics.startedFingeringJudgments << "\nChord | pass "
                       << diagnostics.passedChordJudgments << " | fail "

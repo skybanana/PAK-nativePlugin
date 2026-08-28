@@ -120,6 +120,23 @@ target_link_libraries(chordTest
     Aubio::aubio
 )
 
+# 수집 중에도 onset 분석을 유지하는 G5 코드 판정 비교 테스트
+add_executable(chordOnsetTest "test/chordOnsetTest.cpp")
+
+target_link_libraries(chordOnsetTest
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
+
+# aubio onset 시각 기준으로 판정 창을 닫는 플러그인 창 비교 테스트
+add_executable(judgeWindowTest "test/judgeWindowTest.cpp")
+target_link_libraries(judgeWindowTest
+  PRIVATE
+    RtAudio::rtaudio
+    Aubio::aubio
+)
+
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (duplexTiming "test/duplexTiming.cpp")
 
