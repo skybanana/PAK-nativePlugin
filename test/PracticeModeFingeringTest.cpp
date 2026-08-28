@@ -24,6 +24,7 @@ struct PluginApi {
     void (*StopSession)(void);
     int (*PollJudgeEvent)(JudgeEvent *);
     int (*GetAudioStats)(AudioStats *);
+    int (*GetJudgmentDiagnostics)(JudgmentDiagnostics *);
     void (*Shutdown)(void);
 };
 
@@ -63,6 +64,7 @@ bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
            loadPluginFunction(plugin, "StopSession", &plugin->StopSession) &&
            loadPluginFunction(plugin, "PollJudgeEvent", &plugin->PollJudgeEvent) &&
            loadPluginFunction(plugin, "GetAudioStats", &plugin->GetAudioStats) &&
+           loadPluginFunction(plugin, "GetJudgmentDiagnostics", &plugin->GetJudgmentDiagnostics) &&
            loadPluginFunction(plugin, "Shutdown", &plugin->Shutdown);
 #else
     (void)dllPath;
@@ -159,6 +161,8 @@ int main(int argc, char *argv[]) {
 
     int result = 0;
     int shownNoteIndex = -1;
+    unsigned int consumedJudgeEvents = 0;
+    std::chrono::steady_clock::time_point lastQueueReportAt = std::chrono::steady_clock::now();
     AudioStats stats = {};
     if (plugin.Initialize(channels, sampleRate, inputDevice, outputDevice, inputOffset, outputOffset) != 0 ||
         plugin.LoadChart(chartPath.c_str()) != 0) {
@@ -187,10 +191,29 @@ int main(int argc, char *argv[]) {
 
         JudgeEvent event = {};
         while (plugin.PollJudgeEvent(&event) == 1) {
+            consumedJudgeEvents++;
             std::cout << judgeResultText(event.result) << ": " << event.noteName;
             if (event.result == JudgeResult_Miss)
                 std::cout << " - retry the same target";
             std::cout << "\n" << std::flush;
+        }
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastQueueReportAt >= std::chrono::seconds(1)) {
+            JudgmentDiagnostics diagnostics = {};
+            if (plugin.GetJudgmentDiagnostics(&diagnostics) != 0) {
+                result = 1;
+                goto cleanup;
+            }
+            std::cout << "Queue | consumed " << consumedJudgeEvents << " | dropped "
+                      << stats.droppedJudgeEvents << " | "
+                      << (stats.droppedJudgeEvents > 0 ? "full" : "not full")
+                      << "\nOnset | detected " << diagnostics.detectedOnsets << " | accepted "
+                      << diagnostics.startedFingeringJudgments << "\nChord | pass "
+                      << diagnostics.passedChordJudgments << " | fail "
+                      << diagnostics.failedChordJudgments << "\n"
+                      << std::flush;
+            lastQueueReportAt = now;
         }
 
         if (stats.isFinished)

@@ -173,6 +173,10 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.pitchObservations.clear();
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
+    g_state.detectedOnsets.store(0);
+    g_state.startedFingeringJudgments.store(0);
+    g_state.passedChordJudgments.store(0);
+    g_state.failedChordJudgments.store(0);
     g_state.lastGuitarInputEventAudioTimeMs.store(-g_state.guitarInputIntervalMs.load());
     if (g_state.onsetDetector)
         aubio_onset_reset(g_state.onsetDetector);
@@ -354,6 +358,19 @@ extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {
     outStats->isRunning = g_adac->isStreamRunning() ? 1 : 0;
     outStats->isFinished = g_state.summaryFinished.load() ? 1 : 0;
     outStats->isPaused = g_state.isPaused.load() ? 1 : 0;
+    return 0;
+}
+
+extern "C" PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnostics) {
+    // Copies counters used to diagnose fingering-practice onset and chord judgment behavior.
+    if (g_adac == nullptr)
+        return -1;
+
+    *outDiagnostics = {};
+    outDiagnostics->detectedOnsets = g_state.detectedOnsets.load();
+    outDiagnostics->startedFingeringJudgments = g_state.startedFingeringJudgments.load();
+    outDiagnostics->passedChordJudgments = g_state.passedChordJudgments.load();
+    outDiagnostics->failedChordJudgments = g_state.failedChordJudgments.load();
     return 0;
 }
 

@@ -68,6 +68,10 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.stopRequested.store(true);
     g_state.requestedSessionMode.store(SessionMode_GuitarInput);
     g_state.sessionMode.store(SessionMode_None);
+    g_state.detectedOnsets.store(0);
+    g_state.startedFingeringJudgments.store(0);
+    g_state.passedChordJudgments.store(0);
+    g_state.failedChordJudgments.store(0);
     g_state.guitarInputIntervalMs.store(150.0);
     g_state.lastGuitarInputEventAudioTimeMs.store(-150.0);
     g_state.sessionStreamTimeOffset.store(0.0);

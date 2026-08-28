@@ -296,6 +296,12 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs, double aud
 
         JudgeEvent event;
         int result = pitchMatched ? resultToCode(timingResult) : JudgeResult_Miss;
+        if (pending.isFingeringPractice && note.interpretation == "chord") {
+            if (pitchMatched)
+                state->passedChordJudgments.fetch_add(1);
+            else
+                state->failedChordJudgments.fetch_add(1);
+        }
         fillJudgeEvent(&event,
                        pending.noteIndex,
                        result,
@@ -364,6 +370,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
 
     if (state->sessionMode.load() == SessionMode_FingeringPractice) {
         int noteIndex = state->nextNoteIndex.load();
+        if (hasOnset)
+            state->detectedOnsets.fetch_add(1);
         if (hasOnset && noteIndex < (int)state->chart.notes.size() &&
             state->pendingJudgments.empty()) {
             const ChartParser::ChartNote &note = state->chart.notes[noteIndex];
@@ -376,6 +384,7 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
                                                onsetAudioTimeMs + settleMs,
                                                true,
                                                {}});
+            state->startedFingeringJudgments.fetch_add(1);
         }
 
         for (PendingJudgment &pending : state->pendingJudgments) {

@@ -55,6 +55,13 @@ struct AudioStats {
     int isPaused;
 };
 
+struct JudgmentDiagnostics {
+    unsigned int detectedOnsets;
+    unsigned int startedFingeringJudgments;
+    unsigned int passedChordJudgments;
+    unsigned int failedChordJudgments;
+};
+
 struct SongSyncInfo {
     // Audio path declared by the loaded chart.
     char audioFile[260];
@@ -194,6 +201,9 @@ PLUGIN_API int PollGuitarInputEvent(GuitarInputEvent *outEvent);
 
 // Copies current audio and judgment progress stats.
 PLUGIN_API int GetAudioStats(AudioStats *outStats);
+
+// Copies counters used to diagnose fingering-practice onset and chord judgment behavior.
+PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnostics);
 
 // Copies the loaded song path and the playback time synchronized to the session clock.
 PLUGIN_API int GetSongSyncInfo(SongSyncInfo *outInfo);

@@ -70,6 +70,10 @@ struct PluginState {
     std::atomic<int> sessionMode;
     std::atomic<unsigned int> droppedAudioBlocks;
     std::atomic<unsigned int> droppedJudgeEvents;
+    std::atomic<unsigned int> detectedOnsets;
+    std::atomic<unsigned int> startedFingeringJudgments;
+    std::atomic<unsigned int> passedChordJudgments;
+    std::atomic<unsigned int> failedChordJudgments;
     std::atomic<double> guitarInputIntervalMs;
     std::atomic<double> lastGuitarInputEventAudioTimeMs;
     std::atomic<double> lastStreamTime;

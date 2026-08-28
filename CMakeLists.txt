@@ -187,6 +187,12 @@ add_executable(guitarInputTest
 )
 add_dependencies(guitarInputTest PAKNativePlugin)
 
+# DLL 기반 판정 이벤트 큐 포화 모니터링 테스트
+add_executable(queueFullStateTest
+  "test/queueFullStateTest.cpp"
+)
+add_dependencies(queueFullStateTest PAKNativePlugin)
+
 # WASAPI 장치 연결 테스트
 add_executable(driverConnectTest
   "test/driverConnectTest.cpp"
