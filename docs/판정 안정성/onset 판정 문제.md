@@ -1,6 +1,28 @@
 # G5 연속 스트로크 onset 판정 실험
 
-## 목적
+## 최종 결론
+
+이번 실험에서 onset detector 자체는 현재 목적에 충분한 수준까지 도달했다. 이후의 최우선
+과제는 detector를 더 늘리는 일이 아니라, detector가 반환한 onset 시각을 chord 판정 window에
+어떻게 연결할지 결정하는 일이다.
+
+- **adaptive spectral whitening은 폐기한다.** 실제 ON 상태에서 threshold를 `0.04`부터
+  `0.30`까지 올려도 whitening OFF + `0.04`의 raw F1 93.9%에 도달하지 못했다. ON 내부의
+  최고 F1도 threshold `0.10`에서 51.3%다.
+- **SpecFlux/Complex 비교는 보류한다.** 현재 HFC detector는 필요한 onset 후보를 충분히
+  제공하므로, 추가 descriptor 비교보다 window anchoring을 먼저 검증한다.
+- **overlapping judgment 구조는 유지한다.** 160ms settle을 줄이지 않고 `5985.9ms`와 같은
+  raw TP의 pending 유실을 제거한다. 이후 chord fail은 detector 문제가 아니라 chord
+  window/판정 문제로 분리된다.
+- **다음 병목은 onset 시간 위치와 chord window anchoring이다.** aubio/HFC가 보고하는
+  onset 시각은 연주자가 의도한 strike 시작, 고주파 peak, chord FFT에 적합한 window 시작점과
+  서로 다를 수 있다.
+
+다음 실험에서는 HFC, whitening OFF, threshold `0.04`, overlapping judgment와 160ms settle을
+고정한다. 사용자 아이디어에 따른 anchoring 방식만 바꾸고, raw onset 시각·실제 window 구간·
+chord pass/fail을 함께 기록한다.
+
+## 목적과 입력
 
 운지 연습 모드에서 연속으로 들어오는 G5 파워코드 스트로크가 첫 24개 타깃까지
 안정적으로 진행되는지 확인한다.
@@ -33,18 +55,18 @@ aubio_onset_do()
   ↓
 detectedOnsets 증가
   ↓
-pendingJudgments가 비어 있으면 새 타깃 판정 시작
+raw onset마다 새 타깃 판정 시작 (pending judgment와 겹침 허용)
   ↓
-G5 chord는 160ms(CHORD_SETTLE_MS) 동안 샘플 수집
+각 judgment가 160ms(CHORD_SETTLE_MS) PCM window를 독립 수집
   ↓
 fundamental 판정 성공 시 다음 타깃으로 진행
 ```
 
 `new_aubio_onset("default", ...)`의 `default` descriptor는 aubio에서 HFC(High
 Frequency Content)다. 초기 기준선의 peak-picking threshold는 `0.2f`였고, 현재 후보
-조건은 adaptive whitening ON과 threshold `0.04f`다.
+조건은 **adaptive whitening OFF와 threshold `0.04f`**다.
 
-## 실험 결과
+## 초기 기준선과 참고 기록
 
 | 입력 / 설정                            | 타깃 통과 | detected | started | chord pass / fail | 해석                                                  |
 | -------------------------------------- | --------: | -------: | ------: | ----------------: | ----------------------------------------------------- |
@@ -68,7 +90,8 @@ Frequency Content)다. 초기 기준선의 peak-picking threshold는 `0.2f`였�
 - 즉 추가 후보는 다음 스트로크가 아니라 하나의 스트로크에서 나온 중복 onset이었다.
 - 타깃 진행 수는 늘지 않았고 chord fail만 1개 증가했다.
 
-따라서 이 변경은 되돌렸다. 현재는 판정 대기 중 onset을 다시 버린다.
+따라서 당시의 순차 후보 보존 변경은 되돌렸다. 이는 현재의 독립 PCM window를 사용하는
+judgment overlap 구현과는 다른 방식이다.
 
 ### 반복성
 
@@ -97,31 +120,31 @@ detected 19 / started 18 / chord pass 16 / chord fail 2
 스트로크가 detector에서 누락됐을 가능성이 높은 구간이다. 단, 녹음에 별도 정답 onset
 마커가 없으므로 정확한 누락 스트로크 개수는 아직 확정하지 않는다.
 
-## 결론
+## 확인된 판단
 
 ### 1. raw onset과 judgment 손실을 분리해야 한다
 
-raw onset 시각을 CSV와 직접 매칭한 현재 후보 조건(whitening ON, threshold `0.04`)의
-결과는 아래와 같다.
+raw onset 시각을 CSV와 직접 매칭해 whitening 적용 여부를 다시 검증했다. 이전에 이 문서에서
+`whitening ON + 0.04`로 기록한 좋은 결과는 실제로 whitening 호출이 빠진 **OFF** 실행의
+결과였다. 따라서 기존 ON 결론은 무효다.
 
 ```text
-raw onset 25개
-  ├─ 의도한 스트로크 raw TP 23개
-  ├─ 의도한 스트로크 raw FN 1개: 7207ms up weak
-  └─ x,x ignored 2개: 1861.9ms, 1961.6ms
+whitening OFF + threshold 0.04
+  raw TP 23 / FP 2 / FN 1 (FN: 7207ms up weak)
 
-started judgment 23개
-  ├─ 의도한 스트로크 TP 22개
-  └─ x,x ignored 1개: 1861.9ms
+whitening ON + threshold 0.04
+  raw TP 13 / FP 19 / FN 11
 ```
 
-따라서 남은 문제는 두 종류다.
+whitening ON은 TP를 10개 줄이고 FP와 FN을 동시에 크게 늘렸다. 이 입력에서는 whitening을
+사용하지 않는다. 성능 개선에 유의미했던 변경은 HFC threshold를 `0.2`에서 `0.04`로 낮춘
+것이다.
 
-- **detector 문제**: `7207ms` up weak은 raw onset 자체가 없다.
-- **구조 문제**: `5985.9ms` raw onset은 `5963ms` down strong 라벨의 raw TP지만,
-  기존 pending chord judgment가 있어 버려진다.
+- **detector 문제**: whitening OFF 기준 `7207ms up weak`은 raw onset 자체가 없다.
+- **구조 문제**: `5985.9ms` raw TP는 overlap 구현에서 started judgment로 전달되지만,
+  chord fundamental 판정은 별도로 실패할 수 있다.
 
-기존 started judgment 기준 FN 2개를 모두 detector 누락으로 해석하면 안 된다.
+raw onset과 chord 판정을 분리해야 detector 문제를 구조 또는 chord 문제로 잘못 해석하지 않는다.
 
 ### 2. 커팅은 제거할 노이즈가 아니다
 
@@ -148,9 +171,9 @@ energy는 HFC보다 많은 raw onset(25회)을 검출했지만, 한 스트로크
 아니라, 새 raw onset마다 별도 160ms chord sample window를 열어 **판단을 겹쳐 수행**하는
 방식이다.
 
-## 다음 실험 우선순위
+## 세부 검증 기록
 
-### 1. HFC + adaptive spectral whitening (완료: threshold 0.04 후보)
+### 1. HFC + adaptive spectral whitening (완료: 채택하지 않음)
 
 `InitializeFingeringTest()`에서 onset detector 생성 직후 아래 설정을 적용했다.
 
@@ -158,32 +181,27 @@ energy는 HFC보다 많은 raw onset(25회)을 검출했지만, 한 스트로크
 aubio_onset_set_awhitening(g_state.onsetDetector, 1);
 ```
 
-`G5stroke_gainUp.mp3`와 24개 라벨을 기준으로 HFC를 고정했다. whitening OFF와
-whitening ON threshold `0.20`은 각각 3회 반복해 결과가 동일했다. 이후 whitening ON에서
-threshold를 `0.15`부터 `0.03`까지 낮추며 한 변수씩 비교했다.
+처음 진행한 threshold sweep은 `InitializeFingeringTest()`에 whitening 호출이 없던 상태에서
+수행됐다. 따라서 그 표의 `whitening ON` 행은 실제로 OFF 측정이며, ON 성능 근거로 사용할 수
+없다. 호출을 복구한 뒤 `G5stroke_gainUp.mp3`와 같은 라벨로 다시 측정했다. 아래 raw 지표는
+detector만 비교하므로 judgment overlap과 독립적이다.
 
-| 설정                          | raw / started |  TP |  FP |  FN | Recall | Precision |        F1 |
-| ----------------------------- | ------------: | --: | --: | --: | -----: | --------: | --------: |
-| whitening OFF, threshold 0.20 |       19 / 18 |  17 |   1 |   7 |  70.8% |     94.4% |     81.0% |
-| whitening ON, threshold 0.20  |         4 / 4 |   4 |   0 |  20 |  16.7% |    100.0% |     28.6% |
-| whitening ON, threshold 0.15  |       22 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
-| whitening ON, threshold 0.10  |       23 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
-| whitening ON, threshold 0.05  |       24 / 22 |  21 |   1 |   3 |  87.5% |     95.5% |     91.3% |
-| whitening ON, threshold 0.04  |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |
-| whitening ON, threshold 0.03  |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |
+| 실제 설정 | raw TP | raw FP | raw FN | Recall | Precision | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| whitening OFF, threshold 0.04 | 23 | 2 | 1 | 95.8% | 92.0% | **93.9%** |
+| whitening ON, threshold 0.04 | 13 | 19 | 11 | 54.2% | 40.6% | 46.4% |
+| whitening ON, threshold 0.05 | 12 | 18 | 12 | 50.0% | 40.0% | 44.4% |
+| whitening ON, threshold 0.10 | 10 | 5 | 14 | 41.7% | 66.7% | **51.3%** |
+| whitening ON, threshold 0.15 | 6 | 0 | 18 | 25.0% | 100.0% | 40.0% |
+| whitening ON, threshold 0.20 | 4 | 0 | 20 | 16.7% | 100.0% | 28.6% |
+| whitening ON, threshold 0.30 | 2 | 0 | 22 | 8.3% | 100.0% | 15.4% |
 
-`0.20`에서 whitening은 onset을 과도하게 억제했다. descriptor 분포가 whitening으로
-변했지만 OFF 기준 threshold를 그대로 사용한 조합이 원인이다. threshold를 낮추면서
-onset 수와 TP가 회복됐고, FP는 1개로 유지됐다.
+threshold를 올리면 FP는 감소하지만 TP가 더 크게 줄어든다. ON 내부의 최고 F1은 `0.10`의
+51.3%지만, OFF `0.04`의 93.9%에 크게 못 미치며 타깃 통과도 11/24로 하락했다. 그러므로
+현재 입력에서 adaptive whitening은 threshold 조절로도 채택할 수 없는 옵션이다.
 
-`0.04`에서 `4715ms` up weak이 추가로 TP가 되어 FN이 3개에서 2개로 줄었다. 남은 FN은
-`5963ms` down strong, `7207ms` up weak이다. `0.03`은 모든 지표가 `0.04`와 같으므로
-성능 증가가 멈춘 포화 구간으로 판단했다.
-
-따라서 현재 입력의 후보 설정은 **adaptive whitening ON + threshold 0.04**다. `0.03`도
-같은 결과지만, 동일 성능에서는 더 높은 threshold가 다른 입력에서 불필요한 FP를 억제할
-여지가 있어 `0.04`를 선택한다. 수정된 `x,x` 라벨과 raw onset 매칭 기준에서 raw onset
-25개 중 `1961.6ms x,x`와 `5985.9ms down strong`이 chord settle 대기 중 버려진다.
+현재 후보는 **whitening OFF + threshold 0.04**다. whitening을 다시 검토하려면 ON 상태를
+명시적으로 보장한 별도 sweep과 다른 녹음 세트가 필요하다.
 
 ### 2. chord settle 길이 비교 (완료: 160ms 유지)
 
@@ -220,7 +238,8 @@ settle 단축이 아니라, settle window를 유지한 병렬 judgment 처리에
 
 `G5test_removeUnexpectSound.mp3`는 원본의 `1861.9ms`, `1961.6ms` 의도하지 않은 소리를
 삭제한 파일이다. 라벨에서도 두 `x,x` 항목을 제거하고, 의도한 스트로크 24개와 마지막
-`7895ms x,x` 항목만 유지했다. 조건은 whitening ON, threshold `0.04`, 병렬 judgment다.
+`7895ms x,x` 항목만 유지했다. 아래는 whitening 적용 여부가 검증되기 전 병렬 judgment
+실험 결과이므로 whitening ON 성능 근거로는 사용하지 않는다.
 
 2회 실행 결과가 동일했다.
 
@@ -260,35 +279,86 @@ settle 단축이 아니라, settle window를 유지한 병렬 judgment 처리에
 - `5963ms`의 chord 결과는 fail이므로, 해결된 것은 onset 전달 구조이며 chord fundamental
   판정 품질은 별도 문제로 남아 있다.
 
-### 5. 7207ms weak-up ODF 상태 확인
+### 5. 7207ms weak-up ODF 상태 확인 (완료)
 
-`7207ms` up weak은 유일한 raw FN이다. 이 구간 전후의 hop별 onset detection function(ODF),
-thresholded descriptor, peak-picking threshold를 기록한다.
+`G5fingeringTest`에 test 전용 ODF 전달 경로를 추가했다. `aubio_onset_do()` 직후 각 hop의
+`audioTimeMs`, descriptor, thresholded descriptor, threshold, `hasOnset`을 기록하고,
+`docs/판정 안정성/G5stroke_odf.csv`로 저장한다. 이 기록은 no-device recorded-input test에서만
+활성화된다.
 
-- 목표: ODF peak가 threshold `0.04` 아래인지, peak 자체가 형성되지 않았는지 구분한다.
-- 비교 구간: 인접한 검출 성공 weak-up과 `7207ms`를 같은 시간 창으로 비교한다.
-- 결과에 따라 threshold 재조정 또는 보조 detector 필요 여부를 결정한다.
+#### 실행 조건과 재현 결과
 
-### 6. SpecFlux와 Complex의 보완성 시험
+adaptive whitening ON, HFC(`default`), threshold `0.04`, 1024-sample buffer, 128-sample hop으로
+`G5stroke_gainUp.mp3`를 실행했다. CSV의 모든 threshold 값은 `0.040`이었다.
+
+```text
+16/24 targets correct
+detected / started = 33 / 33
+raw TP / FP / FN = 13 / 19 / 11
+chord pass / fail = 25 / 8
+```
+
+병렬 judgment에서는 raw onset마다 새 judgment를 시작하므로 `started`가 `detected`와 같다.
+따라서 33은 judgment 전달 문제나 pending drop이 아니라 whitening ON + `0.04`의 raw
+과검출 결과다. 이 값은 whitening OFF + `0.04` 결과보다 나쁘며, whitening ON 조합을
+후보로 채택하지 않는 위 결론과 일치한다.
+
+#### 7207ms와 7322ms onset 해석
+
+| 기준 구간 | thresholded ODF peak | peak 시각 | hasOnset |
+| --- | ---: | ---: | --- |
+| `5791ms` up weak (검출 성공) | 128.584 | 5787.574ms | 5790.476ms |
+| `6129ms` up weak | -15.159 | 6089.433ms | 없음 |
+| `7207ms` up weak 직후 7160~7250ms | 음수 유지 | 최대 -164.583 | 없음 |
+
+`7207ms` 뒤 `7328.798ms`에는 thresholded ODF peak `153.509`가, `7331.701ms` hop에는
+`hasOnset`이 기록됐다. aubio가 보고한 raw onset 시각은 약 `7322ms`다.
+
+수동 라벨은 고주파 peak가 아니라 스트로크 **시작**을 기준으로 찍었다. 특히 `7207ms up weak`은
+24개 중 시작과 peak가 가장 멀며, 수동 확인 peak는 `7267ms`다. 따라서 `7322ms` raw onset은
+다음과 같이 두 라벨 사이에 있다.
+
+| 비교 기준 | 7322ms와의 차이 |
+| --- | ---: |
+| `7207ms` up weak 시작 | +115ms |
+| `7207ms` up weak의 수동 peak `7267ms` | +55ms |
+| 다음 `7398ms down strong` 시작 | -76ms |
+
+현재 고정 매칭 허용 범위 ±75ms에서는 `7322ms → 7398ms`도 약 1ms 밖이므로 매칭되지 않는다.
+그러나 라벨 기준과 detector 기준이 다르므로, 이 수치만으로 `7322ms`를 다음 down strong으로
+분류하거나 `7207ms` 라벨 오류로 결론낼 수 없다. 7207ms가 시작→peak 간격이 긴 예외 스트로크인
+점을 고려하면, 7322ms는 weak-up의 늦은 HFC/aubio 반응일 가능성이 있다.
+
+다음 확인은 `7207ms`, `7267ms`, `7322ms`, `7398ms` 주변 파형/스펙트로그램을 함께 보고,
+다음 down strong의 실제 고주파 peak 시각을 결정하는 것이다. 그 peak가 7322ms 부근이면
+다음 down strong의 이른 검출이고, 그렇지 않으면 7207ms weak-up의 늦은 검출이다.
+
+#### 실행 메모
+
+Windows CMD에서는 UTF-8 한글 경로를 인자로 넘기면 좁은 문자열 경로가 깨져 `abort()`가 발생할
+수 있었다. `run.cmd`는 빌드 디렉터리로 이동한 뒤 인자 없이 기본 설정을 실행하도록 정리했다.
+
+### 6. SpecFlux와 Complex의 보완성 시험 (보류)
 
 HFC만으로 놓치는 `7207ms` weak-up을 대상으로 SpecFlux와 Complex descriptor를 같은 라벨과
-raw onset 기준으로 비교한다.
+raw onset 기준으로 비교하는 계획이다. 다만 현재는 onset 후보 부족보다 onset 시각과 chord
+window anchoring이 병목으로 판단되므로, 이 비교는 보류한다.
 
 - 각 descriptor의 raw TP/FP/FN과 `7207ms` 검출 여부를 기록한다.
 - HFC의 raw TP를 유지하면서 다른 descriptor만 잡는 onset이 있는지 확인한다.
 - 보완성이 확인된 경우에만 HFC를 기준 detector로 두고 보조 후보 결합 방식을 검토한다.
 
-### 7. onset 분석 창 크기 비교
+### 7. onset 분석 창 크기 비교 (보류)
 
 현재 onset buffer는 1024 sample(44.1kHz에서 약 23ms), hop은 128 sample이다.
 buffer를 512 sample(약 12ms)으로 줄여 빠른 스트로크 attack이 이전 스트로크와 덜 섞이는지
-확인한다. whitening 실험 이후에 한 변수만 바꾸어 비교한다.
+확인하는 계획이다. 다만 anchoring 실험보다 우선하지 않는다.
 
-### 8. 필요 시 target-aware 보조 detector 설계
+### 8. 필요 시 target-aware 보조 detector 설계 (보류)
 
 energy 단독 검출은 채택하지 않는다. 이후에도 HFC가 실제 스트로크를 누락하면,
 저·중역의 짧은 RMS 상승을 보조 후보로 사용하고, 이후 G5 fundamental 판정이 통과할 때만
 타깃 진행을 허용하는 방식을 검토한다.
 
-이 단계는 custom detector와 상태 처리 변경이 필요하므로 whitening/buffer 실험 후에
-진행한다.
+이 단계는 custom detector와 상태 처리 변경이 필요하다. 현재 HFC detector가 충분하다는
+결론을 바꾸는 새로운 입력 증거가 생길 때만 다시 검토한다.
