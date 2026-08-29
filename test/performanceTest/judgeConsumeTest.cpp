@@ -4,7 +4,7 @@
 #include <string>
 #include <thread>
 
-#include "../src/main.h"
+#include "../../src/main.h"
 
 #ifdef _WIN32
 #include <conio.h>
@@ -19,16 +19,15 @@ struct PluginApi {
     int (*Initialize)(
         unsigned int, unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
     int (*LoadChart)(const char *);
-    int (*StartSession)(void);
+    int (*StartFingeringPracticeSession)(void);
     void (*StopSession)(void);
-    int (*PollJudgeEvent)(JudgeEvent *);
-    int (*GetAudioStats)(AudioStats *);
+    int (*GetJudgeProcessingStats)(JudgeProcessingStats *);
     void (*Shutdown)(void);
 };
 
 void usage(void) {
-    // Prints the command-line arguments accepted by the queue-full monitor.
-    std::cout << "usage: queueFullStateTest N fs <iDevice> <oDevice> <iChannelOffset> "
+    // Prints the command-line arguments accepted by this processing monitor.
+    std::cout << "usage: judgeConsumeTest N fs <iDevice> <oDevice> <iChannelOffset> "
                  "<oChannelOffset> <chartPath> <dllPath>\n";
     std::exit(0);
 }
@@ -48,7 +47,7 @@ bool loadPluginFunction(PluginApi *plugin, const char *name, FunctionType *outFu
 }
 
 bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
-    // Opens the DLL and binds the APIs needed to observe the judge-event queue.
+    // Opens the DLL and binds only APIs required for processing-rate monitoring.
 #ifdef _WIN32
     *plugin = {};
     plugin->module = LoadLibraryA(dllPath.c_str());
@@ -57,10 +56,10 @@ bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
 
     return loadPluginFunction(plugin, "Initialize", &plugin->Initialize) &&
            loadPluginFunction(plugin, "LoadChart", &plugin->LoadChart) &&
-           loadPluginFunction(plugin, "StartSession", &plugin->StartSession) &&
+           loadPluginFunction(
+               plugin, "StartFingeringPracticeSession", &plugin->StartFingeringPracticeSession) &&
            loadPluginFunction(plugin, "StopSession", &plugin->StopSession) &&
-           loadPluginFunction(plugin, "PollJudgeEvent", &plugin->PollJudgeEvent) &&
-           loadPluginFunction(plugin, "GetAudioStats", &plugin->GetAudioStats) &&
+           loadPluginFunction(plugin, "GetJudgeProcessingStats", &plugin->GetJudgeProcessingStats) &&
            loadPluginFunction(plugin, "Shutdown", &plugin->Shutdown);
 #else
     (void)dllPath;
@@ -70,7 +69,7 @@ bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
 }
 
 void unloadPlugin(PluginApi *plugin) {
-    // Closes the DLL after its session resources have been released.
+    // Closes the DLL after the plugin has released its resources.
 #ifdef _WIN32
     if (plugin->module != nullptr)
         FreeLibrary(plugin->module);
@@ -80,7 +79,7 @@ void unloadPlugin(PluginApi *plugin) {
 }
 
 bool enterPressed(void) {
-    // Checks whether the user pressed enter without delaying event consumption.
+    // Checks whether enter was pressed without blocking the monitor loop.
 #ifdef _WIN32
     if (_kbhit()) {
         int input = _getch();
@@ -95,6 +94,19 @@ bool enterPressed(void) {
     }
     return false;
 #endif
+}
+
+void printStats(const JudgeProcessingStats &previous, const JudgeProcessingStats &current) {
+    // Prints one compact one-second callback-to-judge processing report.
+    unsigned int queuedPerSecond = current.queuedAudioBlocks - previous.queuedAudioBlocks;
+    unsigned int processedPerSecond =
+        current.processedAudioBlocks - previous.processedAudioBlocks;
+    unsigned int droppedPerSecond = current.droppedAudioBlocks - previous.droppedAudioBlocks;
+    unsigned int backlog = current.queuedAudioBlocks - current.processedAudioBlocks;
+
+    std::cout << "Judge | input " << queuedPerSecond << " block/s | processed "
+              << processedPerSecond << " block/s | backlog " << backlog << " | dropped "
+              << droppedPerSecond << "\n" << std::flush;
 }
 
 int main(int argc, char *argv[]) {
@@ -127,36 +139,38 @@ int main(int argc, char *argv[]) {
     }
 
     int result = 0;
-    unsigned int consumedEvents = 0;
     if (plugin.Initialize(channels, sampleRate, inputDevice, outputDevice, inputOffset, outputOffset) != 0 ||
-        plugin.LoadChart(chartPath.c_str()) != 0 || plugin.StartSession() != 0) {
-        std::cout << "Failed to start judge-event queue monitor.\n";
+        plugin.LoadChart(chartPath.c_str()) != 0 ||
+        plugin.StartFingeringPracticeSession() != 0) {
+        std::cout << "Failed to start judge processing monitor.\n";
         result = 1;
         goto cleanup;
     }
 
-    std::cout << "Monitoring judge-event queue. Press <enter> to stop.\n";
-    std::cout << "A dropped judge event means the queue reached full state.\n";
-    while (!enterPressed()) {
-        AudioStats stats = {};
-        if (plugin.GetAudioStats(&stats) != 0) {
-            result = 1;
-            goto cleanup;
-        }
-
-        JudgeEvent event = {};
-        while (plugin.PollJudgeEvent(&event) == 1)
-            consumedEvents++;
-
-        std::cout << "\rnext " << stats.nextNoteIndex << "/" << stats.totalNotes
-                  << " | consumed " << consumedEvents << " | dropped judge "
-                  << stats.droppedJudgeEvents << " | queue "
-                  << (stats.droppedJudgeEvents > 0 ? "full" : "not full") << "        "
-                  << std::flush;
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::cout << "Monitoring judge processing. Press enter to quit.\n";
+    JudgeProcessingStats previous = {};
+    if (plugin.GetJudgeProcessingStats(&previous) != 0) {
+        result = 1;
+        goto cleanup;
     }
 
-    std::cout << "\n";
+    auto lastReportAt = std::chrono::steady_clock::now();
+    while (!enterPressed()) {
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastReportAt >= std::chrono::seconds(1)) {
+            JudgeProcessingStats current = {};
+            if (plugin.GetJudgeProcessingStats(&current) != 0) {
+                result = 1;
+                break;
+            }
+
+            printStats(previous, current);
+            previous = current;
+            lastReportAt = now;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
 
 cleanup:
     plugin.StopSession();

@@ -27,14 +27,14 @@ find_package(mpg123 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (duplex "test/duplex.cpp")
+add_executable (duplex "test/soundTest/duplex.cpp")
 
 target_link_libraries(duplex
   PRIVATE
     RtAudio::rtaudio
 )
 
-add_executable (duplexDSP "test/duplexDSP.cpp")
+add_executable (duplexDSP "test/soundTest/duplexDSP.cpp")
 
 target_link_libraries(duplexDSP
   PRIVATE
@@ -42,7 +42,7 @@ target_link_libraries(duplexDSP
 )
 
 # DLL
-add_library(duplexPlugin SHARED "test/duplexPlugin.cpp")
+add_library(duplexPlugin SHARED "test/soundTest/duplexPlugin.cpp")
 
 target_link_libraries(duplexPlugin
   PRIVATE
@@ -85,7 +85,7 @@ target_link_libraries(PAKNativePlugin
 )
 
 # 설계 의도: DLL을 동적 로드하는 최소 실행 테스트를 별도 타겟으로 제공한다.
-add_executable(duplexPluginTest "test/duplexPluginTest.cpp")
+add_executable(duplexPluginTest "test/soundTest/duplexPluginTest.cpp")
 add_dependencies(duplexPluginTest duplexPlugin)
 add_custom_command(TARGET duplexPluginTest POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -94,7 +94,7 @@ add_custom_command(TARGET duplexPluginTest POST_BUILD
 )
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (duplexPitch "test/duplexPitch.cpp")
+add_executable (duplexPitch "test/soundTest/duplexPitch.cpp")
 
 target_link_libraries(duplexPitch
   PRIVATE
@@ -103,7 +103,7 @@ target_link_libraries(duplexPitch
 )
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (duplexChord "test/duplexChord.cpp")
+add_executable (duplexChord "test/soundTest/duplexChord.cpp")
 
 target_link_libraries(duplexChord
   PRIVATE
@@ -112,7 +112,7 @@ target_link_libraries(duplexChord
 )
 
 # 입력 시점 기준 Am 코드 판정 테스트
-add_executable (chordTest "test/chordTest.cpp")
+add_executable (chordTest "test/performanceTest/chordTest.cpp")
 
 target_link_libraries(chordTest
   PRIVATE
@@ -121,7 +121,7 @@ target_link_libraries(chordTest
 )
 
 # 수집 중에도 onset 분석을 유지하는 G5 코드 판정 비교 테스트
-add_executable(chordOnsetTest "test/chordOnsetTest.cpp")
+add_executable(chordOnsetTest "test/performanceTest/chordOnsetTest.cpp")
 
 target_link_libraries(chordOnsetTest
   PRIVATE
@@ -130,7 +130,7 @@ target_link_libraries(chordOnsetTest
 )
 
 # aubio onset 시각 기준으로 판정 창을 닫는 플러그인 창 비교 테스트
-add_executable(judgeWindowTest "test/judgeWindowTest.cpp")
+add_executable(judgeWindowTest "test/performanceTest/judgeWindowTest.cpp")
 target_link_libraries(judgeWindowTest
   PRIVATE
     RtAudio::rtaudio
@@ -138,7 +138,7 @@ target_link_libraries(judgeWindowTest
 )
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (duplexTiming "test/duplexTiming.cpp")
+add_executable (duplexTiming "test/soundTest/duplexTiming.cpp")
 
 target_link_libraries(duplexTiming
   PRIVATE
@@ -147,7 +147,7 @@ target_link_libraries(duplexTiming
 )
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
-add_executable (RhythmGame "test/RhythmGame.cpp" "test/ChartParser.cpp")
+add_executable (RhythmGame "test/play/RhythmGame.cpp" "test/feature/ChartParser.cpp")
 
 target_link_libraries(RhythmGame
   PRIVATE
@@ -158,9 +158,9 @@ target_link_libraries(RhythmGame
 
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (RhythmGame_0.2v
-  "test/RhythmGame_0.2v.cpp"
-  "test/RhythmGame_0.2v.h"
-  "test/ChartParser.cpp"
+  "test/play/RhythmGame_0.2v.cpp"
+  "test/play/RhythmGame_0.2v.h"
+  "test/feature/ChartParser.cpp"
 )
 
 target_link_libraries(RhythmGame_0.2v
@@ -172,7 +172,7 @@ target_link_libraries(RhythmGame_0.2v
 
 # DLL 기반 리듬 게임 클라이언트 테스트
 add_executable(RhythmGameDLL
-  "test/RhythmGameDLL.cpp"
+  "test/play/RhythmGameDLL.cpp"
   "src/ChartParser.cpp"
 )
 
@@ -183,13 +183,13 @@ target_link_libraries(RhythmGameDLL
 
 # DLL 기반 천천히 재생 연습 속도 변경 테스트
 add_executable(PracticeModeSlowDownTest
-  "test/PracticeModeSlowDownTest.cpp"
+  "test/play/PracticeModeSlowDownTest.cpp"
 )
 add_dependencies(PracticeModeSlowDownTest PAKNativePlugin)
 
 # DLL 기반 운지 연습 테스트
 add_executable(PracticeModeFingeringTest
-  "test/PracticeModeFingeringTest.cpp"
+  "test/play/PracticeModeFingeringTest.cpp"
   "src/ChartParser.cpp"
 )
 target_link_libraries(PracticeModeFingeringTest
@@ -200,37 +200,37 @@ add_dependencies(PracticeModeFingeringTest PAKNativePlugin)
 
 # DLL 기반 judge audio block 처리 속도 모니터링 테스트
 add_executable(judgeConsumeTest
-  "test/judgeConsumeTest.cpp"
+  "test/performanceTest/judgeConsumeTest.cpp"
 )
 add_dependencies(judgeConsumeTest PAKNativePlugin)
 
 # DLL 기반 기타 입력 테스트
 add_executable(guitarInputTest
-  "test/guitarInputTest.cpp"
+  "test/feature/guitarInputTest.cpp"
 )
 add_dependencies(guitarInputTest PAKNativePlugin)
 
 # DLL 기반 판정 이벤트 큐 포화 모니터링 테스트
 add_executable(queueFullStateTest
-  "test/queueFullStateTest.cpp"
+  "test/performanceTest/queueFullStateTest.cpp"
 )
 add_dependencies(queueFullStateTest PAKNativePlugin)
 
 # WASAPI 장치 연결 테스트
 add_executable(driverConnectTest
-  "test/driverConnectTest.cpp"
+  "test/performanceTest/driverConnectTest.cpp"
 )
 add_dependencies(driverConnectTest PAKNativePlugin)
 
 # 출력 전용 테스트 톤 API 테스트
 add_executable(audioTestApiTest
-  "test/audioTestApiTest.cpp"
+  "test/performanceTest/audioTestApiTest.cpp"
 )
 add_dependencies(audioTestApiTest PAKNativePlugin)
 
 # ASIO SDK로 선택한 드라이버만 직접 초기화하는 연결 테스트
 add_executable(asioDirectConnectTest
-  "test/asioDirectConnectTest.cpp"
+  "test/performanceTest/asioDirectConnectTest.cpp"
 )
 target_link_libraries(asioDirectConnectTest
   PRIVATE

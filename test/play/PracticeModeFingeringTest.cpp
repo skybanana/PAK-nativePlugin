@@ -4,8 +4,8 @@
 #include <string>
 #include <thread>
 
-#include "../src/ChartParser.h"
-#include "../src/main.h"
+#include "../../src/ChartParser.h"
+#include "../../src/main.h"
 
 #ifdef _WIN32
 #include <conio.h>

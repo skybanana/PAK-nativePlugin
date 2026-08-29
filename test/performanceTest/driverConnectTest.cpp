@@ -1,4 +1,4 @@
-#include "../src/main.h"
+#include "../../src/main.h"
 
 #include <cstdlib>
 #include <cstring>
