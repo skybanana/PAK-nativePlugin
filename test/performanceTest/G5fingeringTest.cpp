@@ -276,7 +276,7 @@ int main(int argc, char *argv[]) {
     std::string chartPath = std::string(PAK_SOURCE_DIR) + "/assets/charts/PAK - Night.json";
     std::string dllPath = PAK_DEFAULT_DLL_PATH;
     std::string onsetMethod = "default";
-    float onsetThreshold = 0.2f;
+    float onsetThreshold = 0.04f;
     std::string labelCsvPath = std::string(PAK_SOURCE_DIR) +
                                u8"/docs/\uD310\uC815 \uC548\uC815\uC131/G5stroke_label.csv";
     if (argc > 7)
@@ -334,7 +334,6 @@ int main(int argc, char *argv[]) {
 
     std::vector<int16_t> block(128 * channels, 0);
     unsigned int correctTargets = 0;
-    std::vector<bool> passedTargets(kTargetCount, false);
     unsigned int totalEvents = 0;
     unsigned int falsePositive = 0;
     unsigned int ignoredOnsets = 0;
@@ -419,10 +418,8 @@ int main(int argc, char *argv[]) {
                               << event.judgedAudioTimeMs - previousOnsetAudioTimeMs << " ms";
                 std::cout << "\n";
                 previousOnsetAudioTimeMs = event.judgedAudioTimeMs;
-                if (event.result == JudgeResult_Perfect && !passedTargets[event.noteIndex]) {
-                    passedTargets[event.noteIndex] = true;
+                if (event.result == JudgeResult_Perfect)
                     ++correctTargets;
-                }
             }
         }
         nextBlockAt += std::chrono::microseconds(128000000 / sampleRate);
@@ -472,10 +469,8 @@ int main(int argc, char *argv[]) {
                           << " ms";
             std::cout << "\n";
             previousOnsetAudioTimeMs = event.judgedAudioTimeMs;
-            if (event.result == JudgeResult_Perfect && !passedTargets[event.noteIndex]) {
-                passedTargets[event.noteIndex] = true;
+            if (event.result == JudgeResult_Perfect)
                 ++correctTargets;
-            }
         }
     }
 

@@ -15,8 +15,6 @@ struct PendingJudgment {
     double deadlineChartTimeMs;
     double deadlineAudioTimeMs;
     bool isFingeringPractice;
-    unsigned long long onsetFrame;
-    unsigned long long endFrame;
     std::vector<float> chordSamples;
 };
 

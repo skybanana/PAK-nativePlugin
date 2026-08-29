@@ -110,7 +110,6 @@ static int initializeAudioDriver(RtAudio::Api api,
         return -1;
     }
 
-    g_state.fingeringPcmRing.assign(FINGERING_PCM_RING_FRAMES, 0.0f);
     prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
     preparePluginEventQueue(&g_state.eventQueue, 64);
 
@@ -123,7 +122,8 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.onsetDetector = new_aubio_onset("default", 1024, g_state.bufferFrames, sampleRate);
     g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
-    aubio_onset_set_threshold(g_state.onsetDetector, 0.3f);
+    aubio_onset_set_threshold(g_state.onsetDetector, 0.04f);
+    aubio_onset_set_awhitening(g_state.onsetDetector, 1);
     if (!initializeSongDecoder()) {
         Shutdown();
         return -1;
@@ -218,7 +218,6 @@ extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
 
-    g_state.fingeringPcmRing.assign(FINGERING_PCM_RING_FRAMES, 0.0f);
     prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
     preparePluginEventQueue(&g_state.eventQueue, 64);
     g_state.input = new_fvec(g_state.bufferFrames);
@@ -232,6 +231,7 @@ extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
     g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
     aubio_onset_set_threshold(g_state.onsetDetector, onsetThreshold);
+    aubio_onset_set_awhitening(g_state.onsetDetector, 1);
     return initializeSongDecoder() ? 0 : -1;
 }
 

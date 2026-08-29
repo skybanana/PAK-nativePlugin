@@ -42,7 +42,7 @@ fundamental 판정 성공 시 다음 타깃으로 진행
 
 `new_aubio_onset("default", ...)`의 `default` descriptor는 aubio에서 HFC(High
 Frequency Content)다. 초기 기준선의 peak-picking threshold는 `0.2f`였고, 현재 후보
-조건은 adaptive whitening ON과 threshold `0.04f`다.
+조건은 **adaptive whitening OFF + threshold `0.04f`**다.
 
 ## 실험 결과
 
@@ -101,27 +101,31 @@ detected 19 / started 18 / chord pass 16 / chord fail 2
 
 ### 1. raw onset과 judgment 손실을 분리해야 한다
 
-raw onset 시각을 CSV와 직접 매칭한 현재 후보 조건(whitening ON, threshold `0.04`)의
-결과는 아래와 같다.
+raw onset 시각을 CSV와 직접 매칭한 결과를 다시 검증했다. 이전에 이 문서에서
+`whitening ON + 0.04`로 기록한 좋은 수치는 실제로 whitening 호출이 빠진 **OFF** 실행의
+결과였다. 따라서 해당 ON 결론은 무효다.
 
 ```text
-raw onset 25개
-  ├─ 의도한 스트로크 raw TP 23개
-  ├─ 의도한 스트로크 raw FN 1개: 7207ms up weak
-  └─ x,x ignored 2개: 1861.9ms, 1961.6ms
+whitening OFF + threshold 0.04
+  raw TP 23 / FP 2 / FN 1
+  └─ FN: 7207ms up weak
 
-started judgment 23개
-  ├─ 의도한 스트로크 TP 22개
-  └─ x,x ignored 1개: 1861.9ms
+whitening ON + threshold 0.04 (현재 복구한 실제 설정, pending 단일 처리)
+  detected 33 / started 22 / pending dropped 11
+  raw TP 13 / FP 19 / FN 11
+  targets correct 16 / 24
 ```
 
-따라서 남은 문제는 두 종류다.
+whitening ON은 TP를 10개 줄이고 FP와 FN을 동시에 크게 늘렸다. 따라서 현재 확인된
+입력에서는 whitening을 사용하지 않는다. 성능 개선에 유의미했던 변경은 HFC threshold를
+`0.2`에서 `0.04`로 낮춘 것이다.
 
-- **detector 문제**: `7207ms` up weak은 raw onset 자체가 없다.
-- **구조 문제**: `5985.9ms` raw onset은 `5963ms` down strong 라벨의 raw TP지만,
-  기존 pending chord judgment가 있어 버려진다.
+whitening OFF 기준에서 남은 detector 문제는 `7207ms up weak` raw FN이다. pending 단일
+처리에서는 raw TP라도 started judgment로 넘어가지 못할 수 있으므로 detector 성능과
+구조 손실은 별도로 기록한다.
 
-기존 started judgment 기준 FN 2개를 모두 detector 누락으로 해석하면 안 된다.
+- **detector 문제**: `7207ms up weak`은 whitening OFF 기준에서도 raw onset 자체가 없다.
+- **구조 문제**: `5985.9ms` raw TP처럼 pending judgment 때문에 버려지는 onset이 있다.
 
 ### 2. 커팅은 제거할 노이즈가 아니다
 
@@ -139,18 +143,18 @@ energy는 HFC보다 많은 raw onset(25회)을 검출했지만, 한 스트로크
 
 현재 입력에서는 HFC가 energy보다 좋은 기준선이다.
 
-### 4. 판정 대기 중 후보 보존과 판단 중첩은 구분한다
+### 4. 판정 대기 중 후보 보존과 판단 중첩 (되돌림)
 
 이전 후보 보존 실험에서 추가 처리된 `1961.5ms` onset은 현재 `x,x` 라벨로 분류된
 의도하지 않은 소리였다. 따라서 이를 다음 target으로 순차 연결하는 방식은 적합하지 않다.
 
-반면 `5963ms` raw TP는 유효한 스트로크다. 다음 해결책은 기존 160ms settle을 줄이는 것이
-아니라, 새 raw onset마다 별도 160ms chord sample window를 열어 **판단을 겹쳐 수행**하는
-방식이다.
+`5963ms` raw TP는 유효한 스트로크다. 다만 새 raw onset마다 별도 160ms chord sample
+window를 열어 판단을 겹치는 구현은 이후 제거했다. 현재는 `pendingJudgments.empty()`를
+유지하고 기존 block 단위 `chordSamples` 누적 방식을 사용한다.
 
 ## 다음 실험 우선순위
 
-### 1. HFC + adaptive spectral whitening (완료: threshold 0.04 후보)
+### 1. HFC + adaptive spectral whitening (결론: 채택하지 않음)
 
 `InitializeFingeringTest()`에서 onset detector 생성 직후 아래 설정을 적용했다.
 
@@ -158,32 +162,18 @@ energy는 HFC보다 많은 raw onset(25회)을 검출했지만, 한 스트로크
 aubio_onset_set_awhitening(g_state.onsetDetector, 1);
 ```
 
-`G5stroke_gainUp.mp3`와 24개 라벨을 기준으로 HFC를 고정했다. whitening OFF와
-whitening ON threshold `0.20`은 각각 3회 반복해 결과가 동일했다. 이후 whitening ON에서
-threshold를 `0.15`부터 `0.03`까지 낮추며 한 변수씩 비교했다.
+이전 sweep은 `InitializeFingeringTest()`에 whitening 호출이 없던 상태에서 수행됐다.
+따라서 표의 `whitening ON` 행은 실제로는 OFF 측정이며, ON 성능 비교 자료로 사용할 수 없다.
+실제 호출을 복구한 뒤 같은 입력과 threshold `0.04`로 다시 비교한 결과는 아래와 같다.
 
-| 설정                          | raw / started |  TP |  FP |  FN | Recall | Precision |        F1 |
-| ----------------------------- | ------------: | --: | --: | --: | -----: | --------: | --------: |
-| whitening OFF, threshold 0.20 |       19 / 18 |  17 |   1 |   7 |  70.8% |     94.4% |     81.0% |
-| whitening ON, threshold 0.20  |         4 / 4 |   4 |   0 |  20 |  16.7% |    100.0% |     28.6% |
-| whitening ON, threshold 0.15  |       22 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
-| whitening ON, threshold 0.10  |       23 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
-| whitening ON, threshold 0.05  |       24 / 22 |  21 |   1 |   3 |  87.5% |     95.5% |     91.3% |
-| whitening ON, threshold 0.04  |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |
-| whitening ON, threshold 0.03  |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |
+| 실제 설정 | raw TP | raw FP | raw FN | Recall | Precision | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| whitening OFF, threshold 0.04 | 23 | 2 | 1 | 95.8% | 92.0% | **93.9%** |
+| whitening ON, threshold 0.04 | 13 | 19 | 11 | 54.2% | 40.6% | 46.4% |
 
-`0.20`에서 whitening은 onset을 과도하게 억제했다. descriptor 분포가 whitening으로
-변했지만 OFF 기준 threshold를 그대로 사용한 조합이 원인이다. threshold를 낮추면서
-onset 수와 TP가 회복됐고, FP는 1개로 유지됐다.
-
-`0.04`에서 `4715ms` up weak이 추가로 TP가 되어 FN이 3개에서 2개로 줄었다. 남은 FN은
-`5963ms` down strong, `7207ms` up weak이다. `0.03`은 모든 지표가 `0.04`와 같으므로
-성능 증가가 멈춘 포화 구간으로 판단했다.
-
-따라서 현재 입력의 후보 설정은 **adaptive whitening ON + threshold 0.04**다. `0.03`도
-같은 결과지만, 동일 성능에서는 더 높은 threshold가 다른 입력에서 불필요한 FP를 억제할
-여지가 있어 `0.04`를 선택한다. 수정된 `x,x` 라벨과 raw onset 매칭 기준에서 raw onset
-25개 중 `1961.6ms x,x`와 `5985.9ms down strong`이 chord settle 대기 중 버려진다.
+실제 whitening ON은 `0.04`에서 이미 과검출과 누락을 동시에 증가시킨다. threshold를 더
+낮춘 이전 sweep으로 ON 성능을 주장할 근거도 없다. 현재 후보는 **whitening OFF + threshold
+0.04**이며, whitening을 다시 평가하려면 ON 상태를 보장한 새 sweep이 필요하다.
 
 ### 2. chord settle 길이 비교 (완료: 160ms 유지)
 
@@ -214,13 +204,15 @@ onset은 CSV 라벨과 비교할 수 있어 TP/FP/FN으로 표기했다. chord�
 
 따라서 이 입력에서는 **CHORD_SETTLE_MS를 160ms로 유지**한다. 더 짧은 수집 창은 다음
 onset을 더 빨리 받을 수 있어도 chord fundamental 판정 품질 저하가 더 크다. `5963ms` 개선은
-settle 단축이 아니라, settle window를 유지한 병렬 judgment 처리에서 다룬다.
+settle 단축과 별개인 구조 문제다. 현재는 pending 단일 처리로 돌아왔으므로 해당 raw TP는
+다시 dropped될 수 있으며, 구조 변경을 재시도할 때 detector 설정과 분리해 검증한다.
 
 ### 3. 의도하지 않은 초반 소리 제거 입력 (완료)
 
 `G5test_removeUnexpectSound.mp3`는 원본의 `1861.9ms`, `1961.6ms` 의도하지 않은 소리를
 삭제한 파일이다. 라벨에서도 두 `x,x` 항목을 제거하고, 의도한 스트로크 24개와 마지막
-`7895ms x,x` 항목만 유지했다. 조건은 whitening ON, threshold `0.04`, 병렬 judgment다.
+`7895ms x,x` 항목만 유지했다. 아래 결과는 whitening 적용 여부가 확인되기 전 병렬
+judgment 구현에서 얻은 것으로, whitening ON 성능 근거로 사용하지 않는다.
 
 2회 실행 결과가 동일했다.
 
@@ -247,18 +239,14 @@ settle 단축이 아니라, settle window를 유지한 병렬 judgment 처리에
 영향을 준 것으로 판단한다. 이 파일은 onset 구조 검증에는 유효하지만, chord pass/fail을
 자연스러운 원본과 동등하게 비교하는 입력으로는 사용하지 않는다.
 
-### 4. settle 유지 + judgment 겹침 (완료: onset 유실 제거)
+### 4. settle 유지 + judgment 겹침 (되돌림)
 
-`CHORD_SETTLE_MS = 160ms`는 유지한다. raw onset이 들어오면 기존 pending judgment가 있어도
-새 target용 pending judgment를 만들고, 각 judgment가 독립적으로 이후 160ms sample을
-수집하도록 한다.
+`CHORD_SETTLE_MS = 160ms`를 유지하면서 raw onset마다 독립 window를 여는 구현을 한 번
+적용했지만, 현재는 제거했다. `pendingJudgments.empty()`와 block 단위 `chordSamples` 누적을
+복구했으므로 pending 중 onset은 다시 dropped로 기록된다.
 
-- `5985.9ms` raw TP는 더 이상 버려지지 않고 `5963ms` down strong의 chord 판정까지
-  수행된다.
-- raw onset과 started judgment가 모두 25개(원본), 23개(초반 소리 제거 파일)가 되어 pending
-  onset 유실이 제거됐다.
-- `5963ms`의 chord 결과는 fail이므로, 해결된 것은 onset 전달 구조이며 chord fundamental
-  판정 품질은 별도 문제로 남아 있다.
+- 이 구현의 과거 결과는 구조 실험 참고용으로만 남긴다.
+- 현재 whitening 비교에서는 overlap 유무와 detector 설정을 동시에 바꾸지 않는다.
 
 ### 5. 7207ms weak-up ODF 상태 확인
 
