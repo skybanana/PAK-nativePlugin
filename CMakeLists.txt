@@ -198,6 +198,23 @@ target_link_libraries(PracticeModeFingeringTest
 )
 add_dependencies(PracticeModeFingeringTest PAKNativePlugin)
 
+# 녹음된 G5 입력으로 첫 24개 운지 연습 판정을 재현한다.
+add_executable(G5fingeringTest
+  "test/performanceTest/G5fingeringTest.cpp"
+  "src/ChartParser.cpp"
+)
+target_link_libraries(G5fingeringTest
+  PRIVATE
+    MPG123::libmpg123
+    nlohmann_json::nlohmann_json
+)
+target_compile_definitions(G5fingeringTest
+  PRIVATE
+    PAK_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    PAK_DEFAULT_DLL_PATH="$<TARGET_FILE:PAKNativePlugin>"
+)
+add_dependencies(G5fingeringTest PAKNativePlugin)
+
 # DLL 기반 judge audio block 처리 속도 모니터링 테스트
 add_executable(judgeConsumeTest
   "test/performanceTest/judgeConsumeTest.cpp"

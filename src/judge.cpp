@@ -249,7 +249,8 @@ bool matchesChordFundamentalPresence(PluginState *state,
             }
         }
 
-        if (strongestBin != centerBin)
+        // Allows one-bin FFT resolution drift around the expected fundamental.
+        if (std::abs(strongestBin - centerBin) > 1)
             return false;
 
         fundamentalEnergy.push_back(energy);
@@ -311,7 +312,8 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs, double aud
                        detectedMidi,
                        note);
         pushJudgeEvent(state, event);
-        if (pending.isFingeringPractice && pitchMatched &&
+        if (pending.isFingeringPractice &&
+            (pitchMatched || state->advanceFingeringTargetOnFailure) &&
             state->nextNoteIndex.load() == pending.noteIndex) {
             state->nextNoteIndex.store(pending.noteIndex + 1);
         }

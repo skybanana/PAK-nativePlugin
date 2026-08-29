@@ -189,6 +189,49 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
                                  outputOffset);
 }
 
+extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
+                                                    unsigned int sampleRate,
+                                                    const char *onsetMethod) {
+    // Prepares the selected onset detector without opening an audio device for recorded input.
+    Shutdown();
+
+    g_state.chart = {};
+    g_state.channels = channels;
+    g_state.sampleRate = sampleRate;
+    g_state.bufferFrames = 128;
+    g_state.inputGain.store(4.0f);
+    g_state.outputGain.store(0.5f);
+    g_state.songVolume.store(1.0f);
+    g_state.lpfAlpha.store(0.2f);
+    g_state.audioTestMode = false;
+    g_state.stopRequested.store(true);
+    g_state.requestedSessionMode.store(SessionMode_GuitarInput);
+    g_state.sessionMode.store(SessionMode_None);
+    g_state.guitarInputIntervalMs.store(150.0);
+    g_state.practiceSpeed.store(1.0f);
+    g_state.lpfState.assign(channels, 0.0f);
+    g_state.songSamples.clear();
+    g_state.metronomeSamples.clear();
+    g_state.pitchObservations.clear();
+    g_state.pendingGuitarInputs.clear();
+    g_state.pendingJudgments.clear();
+
+    prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
+    preparePluginEventQueue(&g_state.eventQueue, 64);
+    g_state.input = new_fvec(g_state.bufferFrames);
+    g_state.pitch = new_fvec(1);
+    g_state.onset = new_fvec(1);
+    g_state.chordInput = new_fvec(CHORD_FFT_SIZE);
+    g_state.chordSpectrum = new_cvec(CHORD_FFT_SIZE);
+    g_state.pitchDetector = new_aubio_pitch("default", 2048, g_state.bufferFrames, sampleRate);
+    g_state.onsetDetector =
+        new_aubio_onset(onsetMethod, 1024, g_state.bufferFrames, sampleRate);
+    g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
+    aubio_pitch_set_unit(g_state.pitchDetector, "midi");
+    aubio_onset_set_threshold(g_state.onsetDetector, 0.2f);
+    return initializeSongDecoder() ? 0 : -1;
+}
+
 extern "C" PLUGIN_API unsigned int GetAsioDriverCount(void) {
     // Returns registered ASIO driver names without loading or initializing a driver.
 #ifdef _WIN32

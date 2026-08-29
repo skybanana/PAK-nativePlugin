@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #if defined(_WIN32)
 #define PLUGIN_API __declspec(dllexport)
 #else
@@ -177,6 +179,17 @@ PLUGIN_API void SetPracticeSpeed(float speed);
 
 // Starts a no-song practice session that waits for a correct input before advancing.
 PLUGIN_API int StartFingeringPracticeSession(void);
+
+// Initializes the no-device audio path used by the recorded fingering-practice test.
+PLUGIN_API int InitializeFingeringTest(unsigned int channels,
+                                       unsigned int sampleRate,
+                                       const char *onsetMethod);
+
+// Starts the fingering-practice judge thread used by the recorded input test.
+PLUGIN_API int StartFingeringTestSession(void);
+
+// Queues one recorded input block through the normal fingering-practice judge path.
+PLUGIN_API int FeedFingeringTestAudio(const int16_t *samples, unsigned int frames);
 
 // Stops the current session.
 PLUGIN_API void StopSession(void);

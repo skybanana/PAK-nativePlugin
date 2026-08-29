@@ -146,7 +146,7 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
     // Loads a chart JSON file through ChartParser.
     if (!ChartParser::loadChart(chartPath, g_state.chart))
         return -1;
-    if (!loadSong(&g_state, chartPath) || !loadMetronome(&g_state, chartPath))
+    if (g_adac != nullptr && (!loadSong(&g_state, chartPath) || !loadMetronome(&g_state, chartPath)))
         return -1;
 
     g_state.requestedSessionMode.store(SessionMode_Judge);
@@ -157,6 +157,7 @@ extern "C" PLUGIN_API int LoadChart(const char *chartPath) {
 extern "C" PLUGIN_API void ResetSessionTime(void) {
     // Resets the session-relative clock and judgment progress.
     g_state.nextNoteIndex.store(0);
+    g_state.advanceFingeringTargetOnFailure = false;
     g_state.lastDetectedMidi = -1;
     g_state.gameStarted.store(false);
     g_state.summaryFinished.store(false);
@@ -367,7 +368,7 @@ extern "C" PLUGIN_API int GetAudioStats(AudioStats *outStats) {
 
 extern "C" PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnostics) {
     // Copies counters used to diagnose fingering-practice onset and chord judgment behavior.
-    if (g_adac == nullptr)
+    if (g_adac == nullptr && g_state.input == nullptr)
         return -1;
 
     *outDiagnostics = {};
@@ -375,6 +376,48 @@ extern "C" PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnos
     outDiagnostics->startedFingeringJudgments = g_state.startedFingeringJudgments.load();
     outDiagnostics->passedChordJudgments = g_state.passedChordJudgments.load();
     outDiagnostics->failedChordJudgments = g_state.failedChordJudgments.load();
+    return 0;
+}
+
+extern "C" PLUGIN_API int StartFingeringTestSession(void) {
+    // Starts fingering judgment without a device stream for recorded test audio.
+    if (g_adac != nullptr || g_state.input == nullptr)
+        return -1;
+
+    ResetSessionTime();
+    g_state.sessionMode.store(SessionMode_FingeringPractice);
+    g_state.advanceFingeringTargetOnFailure = true;
+    g_state.stopRequested.store(false);
+    g_state.droppedAudioBlocks.store(0);
+    g_state.droppedJudgeEvents.store(0);
+    g_judgeThread = std::thread(judgeThreadMain, &g_state);
+    return 0;
+}
+
+extern "C" PLUGIN_API int FeedFingeringTestAudio(const int16_t *samples, unsigned int frames) {
+    // Sends one recorded audio block through the callback-to-judge queue used in practice.
+    if (g_state.sessionMode.load() != SessionMode_FingeringPractice || frames != g_state.bufferFrames)
+        return -1;
+
+    double streamTime = g_state.lastStreamTime.load();
+    int noteIndex = g_state.nextNoteIndex.load();
+    double chartTimeMs = noteIndex < (int)g_state.chart.notes.size()
+                             ? g_state.chart.notes[noteIndex].startMs
+                             : g_state.chart.durationMs;
+    if (!pushAudioBlock(&g_state.audioQueue,
+                        const_cast<MY_TYPE *>(samples),
+                        frames,
+                        frames * g_state.channels,
+                        streamTime,
+                        chartTimeMs,
+                        0.0)) {
+        g_state.droppedAudioBlocks.fetch_add(1);
+        return -1;
+    }
+
+    g_state.queuedAudioBlocks.fetch_add(1);
+    g_state.lastStreamTime.store(streamTime + (double)frames / g_state.sampleRate);
+    g_state.lastChartTimeMs.store(chartTimeMs);
     return 0;
 }
 
