@@ -39,6 +39,28 @@ int pollJudgeEvent(PluginState *state, JudgeEvent *outEvent) {
     return 1;
 }
 
+void pushFingeringTestRawOnset(PluginState *state,
+                               double audioTimeMs,
+                               bool startedJudgment) {
+    // Stores one detector onset so the recorded-input test can match it directly to labels.
+    PluginEvent output = {};
+    output.type = PluginEvent_FingeringTestRawOnset;
+    output.fingeringTestRawOnset = {audioTimeMs, startedJudgment ? 1 : 0};
+    pushPluginEvent(&state->fingeringTestRawOnsetQueue, output);
+}
+
+int pollFingeringTestRawOnset(PluginState *state, FingeringTestRawOnset *outOnset) {
+    // Pops one raw onset recorded by the no-device fingering test path.
+    PluginEvent event = {};
+    if (!pollPluginEvent(&state->fingeringTestRawOnsetQueue,
+                         PluginEvent_FingeringTestRawOnset,
+                         &event))
+        return 0;
+
+    *outOnset = event.fingeringTestRawOnset;
+    return 1;
+}
+
 int resultToCode(const char *result) {
     // Converts the timing text into a compact C ABI result code.
     if (strcmp(result, "Perfect") == 0)
@@ -268,6 +290,22 @@ bool matchesChordFundamentalPresence(PluginState *state,
     return true;
 }
 
+void storeFingeringPcmBlock(PluginState *state, const AudioBlock *block) {
+    // Stores the current mono input block at its absolute stream-frame positions.
+    unsigned long long firstFrame =
+        (unsigned long long)std::llround(block->streamTime * state->sampleRate);
+    for (unsigned int i = 0; i < block->frames; i++)
+        state->fingeringPcmRing[(firstFrame + i) % FINGERING_PCM_RING_FRAMES] =
+            fvec_get_sample(state->input, i);
+}
+
+void copyFingeringChordWindow(PluginState *state, PendingJudgment *pending) {
+    // Copies this judgment's settled PCM window from the shared ring buffer for FFT analysis.
+    pending->chordSamples.clear();
+    for (unsigned long long frame = pending->onsetFrame; frame < pending->endFrame; frame++)
+        pending->chordSamples.push_back(state->fingeringPcmRing[frame % FINGERING_PCM_RING_FRAMES]);
+}
+
 void finalizePendingJudgments(PluginState *state, double chartTimeMs, double audioTimeMs) {
     // Emits delayed judge events after their pitch window has closed.
     size_t index = 0;
@@ -285,6 +323,8 @@ void finalizePendingJudgments(PluginState *state, double chartTimeMs, double aud
         bool pitchMatched = false;
         int detectedMidi = 0;
         if (note.interpretation == "chord") {
+            if (pending.isFingeringPractice)
+                copyFingeringChordWindow(state, &pending);
             pitchMatched = matchesChordFundamentalPresence(state, pending, note);
         } else {
             bool hasPitch = selectPitchObservation(state, pending, &selected);
@@ -371,13 +411,19 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
     }
 
     if (state->sessionMode.load() == SessionMode_FingeringPractice) {
+        storeFingeringPcmBlock(state, block);
         int noteIndex = state->nextNoteIndex.load();
+        bool startedJudgment = false;
         if (hasOnset)
             state->detectedOnsets.fetch_add(1);
-        if (hasOnset && noteIndex < (int)state->chart.notes.size() &&
-            state->pendingJudgments.empty()) {
+        if (hasOnset && noteIndex < (int)state->chart.notes.size()) {
             const ChartParser::ChartNote &note = state->chart.notes[noteIndex];
             double settleMs = note.interpretation == "chord" ? CHORD_SETTLE_MS : PITCH_SETTLE_MS;
+            unsigned long long onsetFrame =
+                (unsigned long long)std::llround(onsetAudioTimeMs * state->sampleRate / 1000.0);
+            unsigned long long endFrame = onsetFrame +
+                                         (unsigned long long)std::llround(settleMs * state->sampleRate /
+                                                                           1000.0);
             state->pendingJudgments.push_back({noteIndex,
                                                (double)note.startMs,
                                                onsetAudioTimeMs,
@@ -385,18 +431,14 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
                                                (double)note.startMs,
                                                onsetAudioTimeMs + settleMs,
                                                true,
+                                               onsetFrame,
+                                               endFrame,
                                                {}});
             state->startedFingeringJudgments.fetch_add(1);
+            startedJudgment = true;
         }
-
-        for (PendingJudgment &pending : state->pendingJudgments) {
-            const ChartParser::ChartNote &note = state->chart.notes[pending.noteIndex];
-            if (note.interpretation != "chord")
-                continue;
-
-            for (unsigned int i = 0; i < block->frames; i++)
-                pending.chordSamples.push_back(fvec_get_sample(state->input, i));
-        }
+        if (hasOnset)
+            pushFingeringTestRawOnset(state, onsetAudioTimeMs, startedJudgment);
 
         finalizePendingJudgments(state, chartTimeMs, audioTimeMs);
         if (state->nextNoteIndex.load() >= (int)state->chart.notes.size() &&
@@ -426,6 +468,8 @@ void processJudgmentBlock(PluginState *state, AudioBlock *block) {
                                                onsetChartTimeMs + settleMs,
                                                onsetAudioTimeMs + settleMs,
                                                false,
+                                               0,
+                                               0,
                                                {}});
             noteIndex++;
             state->nextNoteIndex.store(noteIndex);

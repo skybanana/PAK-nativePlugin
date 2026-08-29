@@ -37,6 +37,11 @@ struct GuitarInputEvent {
     double audioTimeMs;
 };
 
+struct FingeringTestRawOnset {
+    double audioTimeMs;
+    int startedJudgment;
+};
+
 struct AudioStats {
     // Session-relative stream time in seconds.
     double streamTime;
@@ -183,13 +188,15 @@ PLUGIN_API int StartFingeringPracticeSession(void);
 // Initializes the no-device audio path used by the recorded fingering-practice test.
 PLUGIN_API int InitializeFingeringTest(unsigned int channels,
                                        unsigned int sampleRate,
-                                       const char *onsetMethod);
+                                       const char *onsetMethod,
+                                       float onsetThreshold);
 
 // Starts the fingering-practice judge thread used by the recorded input test.
 PLUGIN_API int StartFingeringTestSession(void);
 
 // Queues one recorded input block through the normal fingering-practice judge path.
 PLUGIN_API int FeedFingeringTestAudio(const int16_t *samples, unsigned int frames);
+PLUGIN_API int PollFingeringTestRawOnset(FingeringTestRawOnset *outOnset);
 
 // Stops the current session.
 PLUGIN_API void StopSession(void);

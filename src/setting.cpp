@@ -110,6 +110,7 @@ static int initializeAudioDriver(RtAudio::Api api,
         return -1;
     }
 
+    g_state.fingeringPcmRing.assign(FINGERING_PCM_RING_FRAMES, 0.0f);
     prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
     preparePluginEventQueue(&g_state.eventQueue, 64);
 
@@ -191,8 +192,9 @@ extern "C" PLUGIN_API int Initialize(unsigned int channels,
 
 extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
                                                     unsigned int sampleRate,
-                                                    const char *onsetMethod) {
-    // Prepares the selected onset detector without opening an audio device for recorded input.
+                                                    const char *onsetMethod,
+                                                    float onsetThreshold) {
+    // Prepares a selected onset detector and threshold without opening an audio device.
     Shutdown();
 
     g_state.chart = {};
@@ -216,6 +218,7 @@ extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
 
+    g_state.fingeringPcmRing.assign(FINGERING_PCM_RING_FRAMES, 0.0f);
     prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
     preparePluginEventQueue(&g_state.eventQueue, 64);
     g_state.input = new_fvec(g_state.bufferFrames);
@@ -228,7 +231,7 @@ extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
         new_aubio_onset(onsetMethod, 1024, g_state.bufferFrames, sampleRate);
     g_state.chordFft = new_aubio_fft(CHORD_FFT_SIZE);
     aubio_pitch_set_unit(g_state.pitchDetector, "midi");
-    aubio_onset_set_threshold(g_state.onsetDetector, 0.2f);
+    aubio_onset_set_threshold(g_state.onsetDetector, onsetThreshold);
     return initializeSongDecoder() ? 0 : -1;
 }
 

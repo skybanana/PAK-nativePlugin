@@ -19,7 +19,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.10";
+    return "0.4.11";
 }
 
 int inoutAudioTest(void *outputBuffer,
@@ -186,6 +186,7 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     if (g_state.onsetDetector)
         aubio_onset_reset(g_state.onsetDetector);
     preparePluginEventQueue(&g_state.eventQueue, 64);
+    preparePluginEventQueue(&g_state.fingeringTestRawOnsetQueue, 64);
 }
 
 extern "C" PLUGIN_API int StartSession(void) {
@@ -377,6 +378,11 @@ extern "C" PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnos
     outDiagnostics->passedChordJudgments = g_state.passedChordJudgments.load();
     outDiagnostics->failedChordJudgments = g_state.failedChordJudgments.load();
     return 0;
+}
+
+extern "C" PLUGIN_API int PollFingeringTestRawOnset(FingeringTestRawOnset *outOnset) {
+    // Polls one raw onset recorded by the no-device fingering test path.
+    return pollFingeringTestRawOnset(&g_state, outOnset);
 }
 
 extern "C" PLUGIN_API int StartFingeringTestSession(void) {

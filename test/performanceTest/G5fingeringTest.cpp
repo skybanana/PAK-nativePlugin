@@ -41,6 +41,11 @@ struct DetectionStats {
     unsigned int falseNegative = 0;
 };
 
+bool isUnintendedLabel(const StrokeLabel &label) {
+    // Identifies recorded but intentionally excluded sounds marked as x,x in the CSV.
+    return label.direction == "x" && label.strength == "x";
+}
+
 void trimSpaces(std::string *text) {
     // Removes CSV field padding before comparing direction and picking strength labels.
     size_t first = 0;
@@ -115,15 +120,52 @@ void printStats(const char *name, const DetectionStats &stats, unsigned int fals
               << " | FN " << stats.falseNegative << "\n";
 }
 
+void recordRawOnset(const FingeringTestRawOnset &onset,
+                    std::vector<StrokeLabel> *labels,
+                    DetectionStats *stats,
+                    unsigned int *falsePositive,
+                    unsigned int *ignoredOnsets,
+                    unsigned int *startedJudgments,
+                    unsigned int *droppedDuringPending) {
+    // Matches one raw detector onset to a label before the judgment-pending filter can discard it.
+    if (onset.startedJudgment)
+        ++*startedJudgments;
+    else
+        ++*droppedDuringPending;
+
+    int labelIndex = findMatchingLabel(*labels, onset.audioTimeMs);
+    std::cout << "Raw onset | " << std::fixed << std::setprecision(1) << onset.audioTimeMs
+              << " ms | " << (onset.startedJudgment ? "Started" : "Dropped");
+    if (labelIndex < 0) {
+        ++*falsePositive;
+        std::cout << " | Raw FP\n";
+        return;
+    }
+
+    StrokeLabel &label = (*labels)[labelIndex];
+    label.matched = true;
+    if (isUnintendedLabel(label)) {
+        ++*ignoredOnsets;
+        std::cout << " | Ignored x x"
+                  << " | offset " << onset.audioTimeMs - label.timeMs << " ms\n";
+        return;
+    }
+
+    ++stats->truePositive;
+    std::cout << " | Raw TP " << label.direction << " " << label.strength
+              << " | offset " << onset.audioTimeMs - label.timeMs << " ms\n";
+}
+
 struct PluginApi {
 #ifdef _WIN32
     HMODULE module;
 #endif
-    int (*InitializeFingeringTest)(unsigned int, unsigned int, const char *);
+    int (*InitializeFingeringTest)(unsigned int, unsigned int, const char *, float);
     int (*LoadChart)(const char *);
     int (*StartFingeringTestSession)(void);
     int (*FeedFingeringTestAudio)(const int16_t *, unsigned int);
     int (*PollJudgeEvent)(JudgeEvent *);
+    int (*PollFingeringTestRawOnset)(FingeringTestRawOnset *);
     int (*GetJudgmentDiagnostics)(JudgmentDiagnostics *);
     void (*StopSession)(void);
     void (*Shutdown)(void);
@@ -132,7 +174,7 @@ struct PluginApi {
 void usage(void) {
     // Prints the optional paths accepted by the recorded G5 fingering test.
     std::cout << "usage: G5fingeringTest <mp3Path> <chartPath> <dllPath> <onsetMethod> "
-                 "<labelCsvPath>\n";
+                 "<onsetThreshold> <labelCsvPath>\n";
     std::exit(0);
 }
 
@@ -163,6 +205,9 @@ bool loadPlugin(const std::string &dllPath, PluginApi *plugin) {
            loadPluginFunction(plugin, "StartFingeringTestSession", &plugin->StartFingeringTestSession) &&
            loadPluginFunction(plugin, "FeedFingeringTestAudio", &plugin->FeedFingeringTestAudio) &&
            loadPluginFunction(plugin, "PollJudgeEvent", &plugin->PollJudgeEvent) &&
+           loadPluginFunction(plugin,
+                              "PollFingeringTestRawOnset",
+                              &plugin->PollFingeringTestRawOnset) &&
            loadPluginFunction(plugin, "GetJudgmentDiagnostics", &plugin->GetJudgmentDiagnostics) &&
            loadPluginFunction(plugin, "StopSession", &plugin->StopSession) &&
            loadPluginFunction(plugin, "Shutdown", &plugin->Shutdown);
@@ -231,9 +276,10 @@ int main(int argc, char *argv[]) {
     std::string chartPath = std::string(PAK_SOURCE_DIR) + "/assets/charts/PAK - Night.json";
     std::string dllPath = PAK_DEFAULT_DLL_PATH;
     std::string onsetMethod = "default";
+    float onsetThreshold = 0.2f;
     std::string labelCsvPath = std::string(PAK_SOURCE_DIR) +
                                u8"/docs/\uD310\uC815 \uC548\uC815\uC131/G5stroke_label.csv";
-    if (argc > 6)
+    if (argc > 7)
         usage();
     if (argc > 1)
         mp3Path = argv[1];
@@ -244,13 +290,16 @@ int main(int argc, char *argv[]) {
     if (argc > 4)
         onsetMethod = argv[4];
     if (argc > 5)
-        labelCsvPath = argv[5];
+        onsetThreshold = std::strtof(argv[5], nullptr);
+    if (argc > 6)
+        labelCsvPath = argv[6];
 
     std::vector<StrokeLabel> labels;
     if (!loadStrokeLabels(labelCsvPath, &labels)) {
         std::cerr << "Failed to load stroke labels: " << labelCsvPath << "\n";
         return 1;
     }
+    std::vector<StrokeLabel> rawLabels = labels;
 
     ChartParser::Chart chart = {};
     if (!ChartParser::loadChart(chartPath, chart)) {
@@ -285,9 +334,16 @@ int main(int argc, char *argv[]) {
 
     std::vector<int16_t> block(128 * channels, 0);
     unsigned int correctTargets = 0;
+    std::vector<bool> passedTargets(kTargetCount, false);
     unsigned int totalEvents = 0;
     unsigned int falsePositive = 0;
+    unsigned int ignoredOnsets = 0;
+    unsigned int rawFalsePositive = 0;
+    unsigned int rawIgnoredOnsets = 0;
+    unsigned int rawStartedJudgments = 0;
+    unsigned int rawDroppedDuringPending = 0;
     DetectionStats allStats = {};
+    DetectionStats rawStats = {};
     DetectionStats downStats = {};
     DetectionStats upStats = {};
     DetectionStats strongStats = {};
@@ -295,11 +351,17 @@ int main(int argc, char *argv[]) {
     double previousOnsetAudioTimeMs = -1.0;
     auto nextBlockAt = std::chrono::steady_clock::now();
     JudgeEvent event = {};
+    FingeringTestRawOnset rawOnset = {};
     int result = 1;
     std::cout << "Onset method: " << onsetMethod << "\n";
-    if (plugin.InitializeFingeringTest(channels, sampleRate, onsetMethod.c_str()) != 0 ||
-        plugin.LoadChart(chartPath.c_str()) != 0 || plugin.StartFingeringTestSession() != 0) {
-        std::cerr << "Failed to start recorded fingering practice.\n";
+    std::cout << "Onset threshold: " << onsetThreshold << "\n";
+    int initializeResult =
+        plugin.InitializeFingeringTest(channels, sampleRate, onsetMethod.c_str(), onsetThreshold);
+    int loadChartResult = initializeResult == 0 ? plugin.LoadChart(chartPath.c_str()) : -1;
+    int startSessionResult = loadChartResult == 0 ? plugin.StartFingeringTestSession() : -1;
+    if (initializeResult != 0 || loadChartResult != 0 || startSessionResult != 0) {
+        std::cerr << "Failed to start recorded fingering practice | initialize " << initializeResult
+                  << " | chart " << loadChartResult << " | session " << startSessionResult << "\n";
         goto cleanup;
     }
 
@@ -311,6 +373,16 @@ int main(int argc, char *argv[]) {
         if (plugin.FeedFingeringTestAudio(block.data(), 128) != 0) {
             std::cerr << "Recorded input queue was full.\n";
             goto cleanup;
+        }
+
+        while (plugin.PollFingeringTestRawOnset(&rawOnset) == 1) {
+            recordRawOnset(rawOnset,
+                           &rawLabels,
+                           &rawStats,
+                           &rawFalsePositive,
+                           &rawIgnoredOnsets,
+                           &rawStartedJudgments,
+                           &rawDroppedDuringPending);
         }
 
         while (plugin.PollJudgeEvent(&event) == 1) {
@@ -325,13 +397,19 @@ int main(int argc, char *argv[]) {
                 if (labelIndex >= 0) {
                     StrokeLabel &label = labels[labelIndex];
                     label.matched = true;
-                    ++allStats.truePositive;
-                    DetectionStats &directionStats = label.direction == "down" ? downStats : upStats;
-                    DetectionStats &strengthStats = label.strength == "strong" ? strongStats : weakStats;
-                    ++directionStats.truePositive;
-                    ++strengthStats.truePositive;
-                    std::cout << " | TP " << label.direction << " " << label.strength
-                              << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                    if (isUnintendedLabel(label)) {
+                        ++ignoredOnsets;
+                        std::cout << " | Ignored x x"
+                                  << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                    } else {
+                        ++allStats.truePositive;
+                        DetectionStats &directionStats = label.direction == "down" ? downStats : upStats;
+                        DetectionStats &strengthStats = label.strength == "strong" ? strongStats : weakStats;
+                        ++directionStats.truePositive;
+                        ++strengthStats.truePositive;
+                        std::cout << " | TP " << label.direction << " " << label.strength
+                                  << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                    }
                 } else {
                     ++falsePositive;
                     std::cout << " | FP";
@@ -341,8 +419,10 @@ int main(int argc, char *argv[]) {
                               << event.judgedAudioTimeMs - previousOnsetAudioTimeMs << " ms";
                 std::cout << "\n";
                 previousOnsetAudioTimeMs = event.judgedAudioTimeMs;
-                if (event.result == JudgeResult_Perfect)
+                if (event.result == JudgeResult_Perfect && !passedTargets[event.noteIndex]) {
+                    passedTargets[event.noteIndex] = true;
                     ++correctTargets;
+                }
             }
         }
         nextBlockAt += std::chrono::microseconds(128000000 / sampleRate);
@@ -350,6 +430,15 @@ int main(int argc, char *argv[]) {
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    while (plugin.PollFingeringTestRawOnset(&rawOnset) == 1) {
+        recordRawOnset(rawOnset,
+                       &rawLabels,
+                       &rawStats,
+                       &rawFalsePositive,
+                       &rawIgnoredOnsets,
+                       &rawStartedJudgments,
+                       &rawDroppedDuringPending);
+    }
     while (plugin.PollJudgeEvent(&event) == 1) {
         ++totalEvents;
         if (event.noteIndex < kTargetCount) {
@@ -361,13 +450,19 @@ int main(int argc, char *argv[]) {
             if (labelIndex >= 0) {
                 StrokeLabel &label = labels[labelIndex];
                 label.matched = true;
-                ++allStats.truePositive;
-                DetectionStats &directionStats = label.direction == "down" ? downStats : upStats;
-                DetectionStats &strengthStats = label.strength == "strong" ? strongStats : weakStats;
-                ++directionStats.truePositive;
-                ++strengthStats.truePositive;
-                std::cout << " | TP " << label.direction << " " << label.strength
-                          << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                if (isUnintendedLabel(label)) {
+                    ++ignoredOnsets;
+                    std::cout << " | Ignored x x"
+                              << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                } else {
+                    ++allStats.truePositive;
+                    DetectionStats &directionStats = label.direction == "down" ? downStats : upStats;
+                    DetectionStats &strengthStats = label.strength == "strong" ? strongStats : weakStats;
+                    ++directionStats.truePositive;
+                    ++strengthStats.truePositive;
+                    std::cout << " | TP " << label.direction << " " << label.strength
+                              << " | offset " << event.judgedAudioTimeMs - label.timeMs << " ms";
+                }
             } else {
                 ++falsePositive;
                 std::cout << " | FP";
@@ -377,8 +472,10 @@ int main(int argc, char *argv[]) {
                           << " ms";
             std::cout << "\n";
             previousOnsetAudioTimeMs = event.judgedAudioTimeMs;
-            if (event.result == JudgeResult_Perfect)
+            if (event.result == JudgeResult_Perfect && !passedTargets[event.noteIndex]) {
+                passedTargets[event.noteIndex] = true;
                 ++correctTargets;
+            }
         }
     }
 
@@ -392,8 +489,16 @@ int main(int argc, char *argv[]) {
                   << " | chord pass " << diagnostics.passedChordJudgments
                   << " | chord fail " << diagnostics.failedChordJudgments << "\n";
     }
+    for (const StrokeLabel &label : rawLabels) {
+        if (label.matched || isUnintendedLabel(label))
+            continue;
+
+        ++rawStats.falseNegative;
+        std::cout << "Raw FN | " << std::fixed << std::setprecision(1) << label.timeMs
+                  << " ms | " << label.direction << " " << label.strength << "\n";
+    }
     for (const StrokeLabel &label : labels) {
-        if (label.matched)
+        if (label.matched || isUnintendedLabel(label))
             continue;
 
         ++allStats.falseNegative;
@@ -405,6 +510,10 @@ int main(int argc, char *argv[]) {
                   << label.direction << " " << label.strength << "\n";
     }
     std::cout << "Label match tolerance: +/-" << kLabelMatchToleranceMs << " ms\n";
+    std::cout << "Raw onset delivery | started " << rawStartedJudgments << " | dropped "
+              << rawDroppedDuringPending << " | ignored " << rawIgnoredOnsets << "\n";
+    printStats("Raw", rawStats, rawFalsePositive);
+    std::cout << "Ignored unintended onsets: " << ignoredOnsets << "\n";
     printStats("All", allStats, falsePositive);
     printStats("Direction down", downStats, 0);
     printStats("Direction up", upStats, 0);

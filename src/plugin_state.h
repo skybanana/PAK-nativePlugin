@@ -20,6 +20,7 @@ constexpr double COUNTDOWN_MS = COUNTDOWN_SECONDS * 1000.0;
 constexpr double PITCH_SETTLE_MS = 80.0;
 constexpr double CHORD_SETTLE_MS = 160.0;
 constexpr unsigned int CHORD_FFT_SIZE = 16384;
+constexpr unsigned int FINGERING_PCM_RING_FRAMES = CHORD_FFT_SIZE;
 
 enum SessionMode {
     SessionMode_None = 0,
@@ -42,6 +43,7 @@ struct PluginState {
     unsigned int bufferFrames;
     AudioSpscQueue audioQueue;
     PluginEventQueue eventQueue;
+    PluginEventQueue fingeringTestRawOnsetQueue;
     fvec_t *input;
     fvec_t *pitch;
     fvec_t *onset;
@@ -93,5 +95,6 @@ struct PluginState {
     std::vector<PitchObservation> pitchObservations;
     std::vector<PendingGuitarInput> pendingGuitarInputs;
     std::vector<PendingJudgment> pendingJudgments;
+    std::vector<float> fingeringPcmRing;
     int lastDetectedMidi;
 };
