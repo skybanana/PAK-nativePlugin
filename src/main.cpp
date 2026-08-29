@@ -19,7 +19,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.9";
+    return "0.4.10";
 }
 
 int inoutAudioTest(void *outputBuffer,
@@ -94,13 +94,15 @@ int inoutRhythmGame(void *outputBuffer,
         state->lastChartTimeMs.store(chartTimeMs);
     }
 
-    if (!pushAudioBlock(&state->audioQueue,
-                        input,
-                        nBufferFrames,
-                        sampleCount,
-                        sessionStreamTime,
-                        chartTimeMs,
-                        chartTimeScale))
+    if (pushAudioBlock(&state->audioQueue,
+                       input,
+                       nBufferFrames,
+                       sampleCount,
+                       sessionStreamTime,
+                       chartTimeMs,
+                       chartTimeScale))
+        state->queuedAudioBlocks.fetch_add(1);
+    else
         state->droppedAudioBlocks.fetch_add(1);
     processMonitorDsp(state,
                       output,
@@ -170,6 +172,8 @@ extern "C" PLUGIN_API void ResetSessionTime(void) {
     g_state.pausedStreamDuration.store(0.0);
     g_state.audioQueue.readIndex.store(0);
     g_state.audioQueue.writeIndex.store(0);
+    g_state.queuedAudioBlocks.store(0);
+    g_state.processedAudioBlocks.store(0);
     g_state.pitchObservations.clear();
     g_state.pendingGuitarInputs.clear();
     g_state.pendingJudgments.clear();
@@ -371,6 +375,18 @@ extern "C" PLUGIN_API int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnos
     outDiagnostics->startedFingeringJudgments = g_state.startedFingeringJudgments.load();
     outDiagnostics->passedChordJudgments = g_state.passedChordJudgments.load();
     outDiagnostics->failedChordJudgments = g_state.failedChordJudgments.load();
+    return 0;
+}
+
+extern "C" PLUGIN_API int GetJudgeProcessingStats(JudgeProcessingStats *outStats) {
+    // Copies callback-to-judge audio block processing counters.
+    if (g_adac == nullptr)
+        return -1;
+
+    *outStats = {};
+    outStats->queuedAudioBlocks = g_state.queuedAudioBlocks.load();
+    outStats->processedAudioBlocks = g_state.processedAudioBlocks.load();
+    outStats->droppedAudioBlocks = g_state.droppedAudioBlocks.load();
     return 0;
 }
 

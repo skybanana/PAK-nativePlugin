@@ -476,6 +476,7 @@ void judgeThreadMain(PluginState *state) {
         }
 
         processJudgmentBlock(state, block);
+        state->processedAudioBlocks.fetch_add(1);
         popAudioBlock(&state->audioQueue);
     }
 }

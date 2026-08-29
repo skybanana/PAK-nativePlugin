@@ -68,6 +68,8 @@ struct PluginState {
     std::atomic<bool> summaryFinished;
     std::atomic<int> requestedSessionMode;
     std::atomic<int> sessionMode;
+    std::atomic<unsigned int> queuedAudioBlocks;
+    std::atomic<unsigned int> processedAudioBlocks;
     std::atomic<unsigned int> droppedAudioBlocks;
     std::atomic<unsigned int> droppedJudgeEvents;
     std::atomic<unsigned int> detectedOnsets;

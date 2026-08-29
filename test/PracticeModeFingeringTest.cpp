@@ -139,12 +139,18 @@ int main(int argc, char *argv[]) {
 
     channels = (unsigned int)std::atoi(argv[1]);
     sampleRate = (unsigned int)std::atoi(argv[2]);
-    if (argc > 3) inputDevice = (unsigned int)std::atoi(argv[3]);
-    if (argc > 4) outputDevice = (unsigned int)std::atoi(argv[4]);
-    if (argc > 5) inputOffset = (unsigned int)std::atoi(argv[5]);
-    if (argc > 6) outputOffset = (unsigned int)std::atoi(argv[6]);
-    if (argc > 7) chartPath = argv[7];
-    if (argc > 8) dllPath = argv[8];
+    if (argc > 3)
+        inputDevice = (unsigned int)std::atoi(argv[3]);
+    if (argc > 4)
+        outputDevice = (unsigned int)std::atoi(argv[4]);
+    if (argc > 5)
+        inputOffset = (unsigned int)std::atoi(argv[5]);
+    if (argc > 6)
+        outputOffset = (unsigned int)std::atoi(argv[6]);
+    if (argc > 7)
+        chartPath = argv[7];
+    if (argc > 8)
+        dllPath = argv[8];
 
     ChartParser::Chart chart = {};
     if (!ChartParser::loadChart(chartPath, chart)) {
@@ -164,7 +170,8 @@ int main(int argc, char *argv[]) {
     unsigned int consumedJudgeEvents = 0;
     std::chrono::steady_clock::time_point lastQueueReportAt = std::chrono::steady_clock::now();
     AudioStats stats = {};
-    if (plugin.Initialize(channels, sampleRate, inputDevice, outputDevice, inputOffset, outputOffset) != 0 ||
+    if (plugin.Initialize(
+            channels, sampleRate, inputDevice, outputDevice, inputOffset, outputOffset) != 0 ||
         plugin.LoadChart(chartPath.c_str()) != 0) {
         std::cout << "Failed to initialize fingering practice session.\n";
         result = 1;
@@ -198,24 +205,24 @@ int main(int argc, char *argv[]) {
             std::cout << "\n" << std::flush;
         }
 
-        auto now = std::chrono::steady_clock::now();
-        if (now - lastQueueReportAt >= std::chrono::seconds(1)) {
-            JudgmentDiagnostics diagnostics = {};
-            if (plugin.GetJudgmentDiagnostics(&diagnostics) != 0) {
-                result = 1;
-                goto cleanup;
-            }
-            std::cout << "Queue | consumed " << consumedJudgeEvents << " | dropped "
-                      << stats.droppedJudgeEvents << " | "
-                      << (stats.droppedJudgeEvents > 0 ? "full" : "not full")
-                      << "\nAudio blocks | dropped " << stats.droppedAudioBlocks
-                      << "\nOnset | detected " << diagnostics.detectedOnsets << " | accepted "
-                      << diagnostics.startedFingeringJudgments << "\nChord | pass "
-                      << diagnostics.passedChordJudgments << " | fail "
-                      << diagnostics.failedChordJudgments << "\n"
-                      << std::flush;
-            lastQueueReportAt = now;
-        }
+        // auto now = std::chrono::steady_clock::now();
+        // if (now - lastQueueReportAt >= std::chrono::seconds(1)) {
+        //     JudgmentDiagnostics diagnostics = {};
+        //     if (plugin.GetJudgmentDiagnostics(&diagnostics) != 0) {
+        //         result = 1;
+        //         goto cleanup;
+        //     }
+        //     std::cout << "Queue | consumed " << consumedJudgeEvents << " | dropped "
+        //               << stats.droppedJudgeEvents << " | "
+        //               << (stats.droppedJudgeEvents > 0 ? "full" : "not full")
+        //               << "|| Audio blocks | dropped " << stats.droppedAudioBlocks
+        //               << "|| Onset | detected " << diagnostics.detectedOnsets << " | accepted "
+        //               << diagnostics.startedFingeringJudgments << "|| Chord | pass "
+        //               << diagnostics.passedChordJudgments << " | fail "
+        //               << diagnostics.failedChordJudgments << "\n"
+        //               << std::flush;
+        //     lastQueueReportAt = now;
+        // }
 
         if (stats.isFinished)
             break;

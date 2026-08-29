@@ -110,7 +110,7 @@ static int initializeAudioDriver(RtAudio::Api api,
         return -1;
     }
 
-    prepareAudioQueue(&g_state.audioQueue, 8, g_state.bufferFrames * channels);
+    prepareAudioQueue(&g_state.audioQueue, 64, g_state.bufferFrames * channels);
     preparePluginEventQueue(&g_state.eventQueue, 64);
 
     g_state.input = new_fvec(g_state.bufferFrames);

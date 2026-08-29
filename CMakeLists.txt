@@ -198,6 +198,12 @@ target_link_libraries(PracticeModeFingeringTest
 )
 add_dependencies(PracticeModeFingeringTest PAKNativePlugin)
 
+# DLL 기반 judge audio block 처리 속도 모니터링 테스트
+add_executable(judgeConsumeTest
+  "test/judgeConsumeTest.cpp"
+)
+add_dependencies(judgeConsumeTest PAKNativePlugin)
+
 # DLL 기반 기타 입력 테스트
 add_executable(guitarInputTest
   "test/guitarInputTest.cpp"
