@@ -19,7 +19,7 @@ static std::thread g_judgeThread;
 
 extern "C" PLUGIN_API const char *GetPluginVersion(void) {
     // Returns the version of the loaded native plugin.
-    return "0.4.11";
+    return "0.5.0";
 }
 
 int inoutAudioTest(void *outputBuffer,
@@ -463,6 +463,9 @@ extern "C" PLUGIN_API void Shutdown(void) {
         g_adac = nullptr;
     }
     releaseAubio(&g_state);
+    g_state.namModel.reset();
+    g_state.namInput.clear();
+    g_state.namOutput.clear();
     releaseSelectedAsioDriver();
     shutdownSongDecoder();
     aubio_cleanup();

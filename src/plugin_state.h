@@ -9,6 +9,7 @@
 #include "input.h"
 #include "judge.h"
 #include "main.h"
+#include "NAM/get_dsp.h"
 
 
 extern "C" {
@@ -53,6 +54,9 @@ struct PluginState {
     aubio_onset_t *onsetDetector;
     aubio_fft_t *chordFft;
     std::vector<float> lpfState;
+    std::unique_ptr<nam::DSP> namModel;
+    std::vector<NAM_SAMPLE> namInput;
+    std::vector<NAM_SAMPLE> namOutput;
     std::vector<MY_TYPE> songSamples;
     unsigned int songChannels;
     unsigned long long songFrames;

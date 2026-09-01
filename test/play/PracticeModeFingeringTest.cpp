@@ -168,6 +168,8 @@ int main(int argc, char *argv[]) {
     int result = 0;
     int shownNoteIndex = -1;
     unsigned int consumedJudgeEvents = 0;
+    unsigned int previousDetectedOnsets = 0;
+    unsigned int previousStartedFingeringJudgments = 0;
     std::chrono::steady_clock::time_point lastQueueReportAt = std::chrono::steady_clock::now();
     AudioStats stats = {};
     if (plugin.Initialize(
@@ -205,24 +207,23 @@ int main(int argc, char *argv[]) {
             std::cout << "\n" << std::flush;
         }
 
-        // auto now = std::chrono::steady_clock::now();
-        // if (now - lastQueueReportAt >= std::chrono::seconds(1)) {
-        //     JudgmentDiagnostics diagnostics = {};
-        //     if (plugin.GetJudgmentDiagnostics(&diagnostics) != 0) {
-        //         result = 1;
-        //         goto cleanup;
-        //     }
-        //     std::cout << "Queue | consumed " << consumedJudgeEvents << " | dropped "
-        //               << stats.droppedJudgeEvents << " | "
-        //               << (stats.droppedJudgeEvents > 0 ? "full" : "not full")
-        //               << "|| Audio blocks | dropped " << stats.droppedAudioBlocks
-        //               << "|| Onset | detected " << diagnostics.detectedOnsets << " | accepted "
-        //               << diagnostics.startedFingeringJudgments << "|| Chord | pass "
-        //               << diagnostics.passedChordJudgments << " | fail "
-        //               << diagnostics.failedChordJudgments << "\n"
-        //               << std::flush;
-        //     lastQueueReportAt = now;
-        // }
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastQueueReportAt >= std::chrono::seconds(1)) {
+            JudgmentDiagnostics diagnostics = {};
+            if (plugin.GetJudgmentDiagnostics(&diagnostics) != 0) {
+                result = 1;
+                goto cleanup;
+            }
+            std::cout << "Onset | detected " << diagnostics.detectedOnsets << " (+"
+                      << diagnostics.detectedOnsets - previousDetectedOnsets << ") | accepted "
+                      << diagnostics.startedFingeringJudgments << " (+"
+                      << diagnostics.startedFingeringJudgments - previousStartedFingeringJudgments
+                      << ")\n"
+                      << std::flush;
+            previousDetectedOnsets = diagnostics.detectedOnsets;
+            previousStartedFingeringJudgments = diagnostics.startedFingeringJudgments;
+            lastQueueReportAt = now;
+        }
 
         if (stats.isFinished)
             break;

@@ -186,15 +186,15 @@ aubio_onset_set_awhitening(g_state.onsetDetector, 1);
 없다. 호출을 복구한 뒤 `G5stroke_gainUp.mp3`와 같은 라벨로 다시 측정했다. 아래 raw 지표는
 detector만 비교하므로 judgment overlap과 독립적이다.
 
-| 실제 설정 | raw TP | raw FP | raw FN | Recall | Precision | F1 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| whitening OFF, threshold 0.04 | 23 | 2 | 1 | 95.8% | 92.0% | **93.9%** |
-| whitening ON, threshold 0.04 | 13 | 19 | 11 | 54.2% | 40.6% | 46.4% |
-| whitening ON, threshold 0.05 | 12 | 18 | 12 | 50.0% | 40.0% | 44.4% |
-| whitening ON, threshold 0.10 | 10 | 5 | 14 | 41.7% | 66.7% | **51.3%** |
-| whitening ON, threshold 0.15 | 6 | 0 | 18 | 25.0% | 100.0% | 40.0% |
-| whitening ON, threshold 0.20 | 4 | 0 | 20 | 16.7% | 100.0% | 28.6% |
-| whitening ON, threshold 0.30 | 2 | 0 | 22 | 8.3% | 100.0% | 15.4% |
+| 실제 설정                     | raw TP | raw FP | raw FN | Recall | Precision |        F1 |
+| ----------------------------- | -----: | -----: | -----: | -----: | --------: | --------: |
+| whitening OFF, threshold 0.04 |     23 |      2 |      1 |  95.8% |     92.0% | **93.9%** |
+| whitening ON, threshold 0.04  |     13 |     19 |     11 |  54.2% |     40.6% |     46.4% |
+| whitening ON, threshold 0.05  |     12 |     18 |     12 |  50.0% |     40.0% |     44.4% |
+| whitening ON, threshold 0.10  |     10 |      5 |     14 |  41.7% |     66.7% | **51.3%** |
+| whitening ON, threshold 0.15  |      6 |      0 |     18 |  25.0% |    100.0% |     40.0% |
+| whitening ON, threshold 0.20  |      4 |      0 |     20 |  16.7% |    100.0% |     28.6% |
+| whitening ON, threshold 0.30  |      2 |      0 |     22 |   8.3% |    100.0% |     15.4% |
 
 threshold를 올리면 FP는 감소하지만 TP가 더 크게 줄어든다. ON 내부의 최고 F1은 `0.10`의
 51.3%지만, OFF `0.04`의 93.9%에 크게 못 미치며 타깃 통과도 11/24로 하락했다. 그러므로
@@ -243,10 +243,10 @@ settle 단축이 아니라, settle window를 유지한 병렬 judgment 처리에
 
 2회 실행 결과가 동일했다.
 
-| 입력 | raw / started | raw TP / FP / FN | judgment TP / FP / FN | pending dropped | chord pass / fail |
-|---|---:|---:|---:|---:|---:|
-| 원본 gain-up | 25 / 25 | 23 / 0 / 1 | 23 / 0 / 1 | 0 | 21 / 4 |
-| 초반 소리 제거 | 23 / 23 | 23 / 0 / 1 | 23 / 0 / 1 | 0 | 19 / 4 |
+| 입력           | raw / started | raw TP / FP / FN | judgment TP / FP / FN | pending dropped | chord pass / fail |
+| -------------- | ------------: | ---------------: | --------------------: | --------------: | ----------------: |
+| 원본 gain-up   |       25 / 25 |       23 / 0 / 1 |            23 / 0 / 1 |               0 |            21 / 4 |
+| 초반 소리 제거 |       23 / 23 |       23 / 0 / 1 |            23 / 0 / 1 |               0 |            19 / 4 |
 
 - 삭제한 두 소리는 새 파일에서 raw onset으로 검출되지 않았다.
 - 의도한 스트로크의 raw TP와 judgment TP는 모두 23개로 유지됐다.
@@ -305,11 +305,11 @@ chord pass / fail = 25 / 8
 
 #### 7207ms와 7322ms onset 해석
 
-| 기준 구간 | thresholded ODF peak | peak 시각 | hasOnset |
-| --- | ---: | ---: | --- |
-| `5791ms` up weak (검출 성공) | 128.584 | 5787.574ms | 5790.476ms |
-| `6129ms` up weak | -15.159 | 6089.433ms | 없음 |
-| `7207ms` up weak 직후 7160~7250ms | 음수 유지 | 최대 -164.583 | 없음 |
+| 기준 구간                         | thresholded ODF peak |     peak 시각 | hasOnset   |
+| --------------------------------- | -------------------: | ------------: | ---------- |
+| `5791ms` up weak (검출 성공)      |              128.584 |    5787.574ms | 5790.476ms |
+| `6129ms` up weak                  |              -15.159 |    6089.433ms | 없음       |
+| `7207ms` up weak 직후 7160~7250ms |            음수 유지 | 최대 -164.583 | 없음       |
 
 `7207ms` 뒤 `7328.798ms`에는 thresholded ODF peak `153.509`가, `7331.701ms` hop에는
 `hasOnset`이 기록됐다. aubio가 보고한 raw onset 시각은 약 `7322ms`다.
@@ -318,11 +318,11 @@ chord pass / fail = 25 / 8
 24개 중 시작과 peak가 가장 멀며, 수동 확인 peak는 `7267ms`다. 따라서 `7322ms` raw onset은
 다음과 같이 두 라벨 사이에 있다.
 
-| 비교 기준 | 7322ms와의 차이 |
-| --- | ---: |
-| `7207ms` up weak 시작 | +115ms |
-| `7207ms` up weak의 수동 peak `7267ms` | +55ms |
-| 다음 `7398ms down strong` 시작 | -76ms |
+| 비교 기준                             | 7322ms와의 차이 |
+| ------------------------------------- | --------------: |
+| `7207ms` up weak 시작                 |          +115ms |
+| `7207ms` up weak의 수동 peak `7267ms` |           +55ms |
+| 다음 `7398ms down strong` 시작        |           -76ms |
 
 현재 고정 매칭 허용 범위 ±75ms에서는 `7322ms → 7398ms`도 약 1ms 밖이므로 매칭되지 않는다.
 그러나 라벨 기준과 detector 기준이 다르므로, 이 수치만으로 `7322ms`를 다음 down strong으로
@@ -362,3 +362,12 @@ energy 단독 검출은 채택하지 않는다. 이후에도 HFC가 실제 스�
 
 이 단계는 custom detector와 상태 처리 변경이 필요하다. 현재 HFC detector가 충분하다는
 결론을 바꾸는 새로운 입력 증거가 생길 때만 다시 검토한다.
+
+| threshold | raw / started |  TP |  FP |  FN | Recall | Precision |        F1 |
+| --------: | ------------: | --: | --: | --: | -----: | --------: | --------: |
+|      0.15 |       22 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
+|      0.10 |       23 / 21 |  20 |   1 |   4 |  83.3% |     95.2% |     88.9% |
+|      0.05 |       24 / 22 |  21 |   1 |   3 |  87.5% |     95.5% |     91.3% |
+|      0.05 |       24 / 22 |  21 |   1 |   3 |  87.5% |     95.5% |     91.3% |
+|      0.04 |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |
+|      0.03 |       25 / 23 |  22 |   1 |   2 |  91.7% |     95.7% | **93.6%** |

@@ -26,6 +26,29 @@ find_package(Aubio CONFIG REQUIRED)
 find_package(mpg123 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
+# NAM Core
+set(NAM_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/NeuralAmpModelerCore")
+file(GLOB NAM_CORE_SOURCES
+  "${NAM_CORE_DIR}/NAM/*.cpp"
+  "${NAM_CORE_DIR}/NAM/*.c"
+  "${NAM_CORE_DIR}/NAM/*/*.cpp"
+)
+
+# Builds NAM DSP sources without adding its benchmark and rendering tool targets.
+add_library(PAKNamCore STATIC ${NAM_CORE_SOURCES})
+target_include_directories(PAKNamCore
+  PUBLIC
+    "${NAM_CORE_DIR}"
+    "${NAM_CORE_DIR}/Dependencies/eigen"
+    "${NAM_CORE_DIR}/Dependencies/nlohmann"
+)
+target_compile_features(PAKNamCore PUBLIC cxx_std_20)
+target_compile_definitions(PAKNamCore PRIVATE
+  NAM_ENABLE_A2_FAST
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+)
+
 # 이 프로젝트의 실행 파일에 소스를 추가합니다.
 add_executable (duplex "test/soundTest/duplex.cpp")
 
@@ -40,6 +63,17 @@ target_link_libraries(duplexDSP
   PRIVATE
     RtAudio::rtaudio
 )
+
+# NAM 기타 입력 duplex 테스트
+add_executable(NAMTest "test/performanceTest/NAMTest.cpp")
+target_link_libraries(NAMTest
+  PRIVATE
+    RtAudio::rtaudio
+    PAKNamCore
+)
+if (MSVC)
+  target_link_options(NAMTest PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:PAKNamCore>")
+endif()
 
 # DLL
 add_library(duplexPlugin SHARED "test/soundTest/duplexPlugin.cpp")
@@ -82,7 +116,13 @@ target_link_libraries(PAKNativePlugin
     Aubio::aubio
     MPG123::libmpg123
     nlohmann_json::nlohmann_json
+    PAKNamCore
 )
+
+if (MSVC)
+  # Keeps NAM's static config-parser registrations in the plugin DLL.
+  target_link_options(PAKNativePlugin PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:PAKNamCore>")
+endif()
 
 # 설계 의도: DLL을 동적 로드하는 최소 실행 테스트를 별도 타겟으로 제공한다.
 add_executable(duplexPluginTest "test/soundTest/duplexPluginTest.cpp")

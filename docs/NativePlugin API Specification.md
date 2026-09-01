@@ -83,6 +83,23 @@ Initialize
 현재 노트에서 채보 진행이 멈춥니다. 올바른 입력은 다음 노트로 진행하고, 틀린 입력은
 `Miss` 이벤트만 발생시키며 현재 노트에 머뭅니다. 곡은 재생하지 않습니다.
 
+### 녹음 기반 운지 테스트 (테스트 전용)
+
+```text
+InitializeFingeringTest
+  -> LoadChart
+  -> StartFingeringTestSession
+      -> FeedFingeringTestAudio(128 frames) 반복 호출
+      -> PollFingeringTestRawOnset / PollJudgeEvent 반복 호출
+      -> GetJudgmentDiagnostics
+  -> StopSession
+  -> Shutdown
+```
+
+오디오 장치를 열지 않고, 녹음 PCM을 실제 운지 판정 queue와 judge thread 경로로 공급한다.
+`G5fingeringTest` 같은 네이티브 회귀 테스트를 위한 API이며 Unity 런타임 사용을 위한 공개
+워크플로는 아니다.
+
 `Initialize`는 내부에서 기존 리소스를 먼저 정리한 뒤 새 오디오 스트림을 준비합니다.
 `ResetSessionTime`은 새 세션 시작 전에 내부 시간과 판정 진행 상태를 0부터 다시 시작하도록 초기화합니다.
 `LoadChart`는 채보 판정에만 필요하며, 기타 입력만 사용할 때는 호출하지 않아도 됩니다.
@@ -167,6 +184,30 @@ public static class PakNativePlugin
     {
         public int midi;
         public double audioTimeMs;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FingeringTestRawOnset
+    {
+        public double audioTimeMs;
+        public int startedJudgment;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JudgmentDiagnostics
+    {
+        public uint detectedOnsets;
+        public uint startedFingeringJudgments;
+        public uint passedChordJudgments;
+        public uint failedChordJudgments;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JudgeProcessingStats
+    {
+        public uint queuedAudioBlocks;
+        public uint processedAudioBlocks;
+        public uint droppedAudioBlocks;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -303,6 +344,22 @@ public static class PakNativePlugin
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int StartFingeringPracticeSession();
 
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    public static extern int InitializeFingeringTest(
+        uint channels,
+        uint sampleRate,
+        [MarshalAs(UnmanagedType.LPStr)] string onsetMethod,
+        float onsetThreshold);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int StartFingeringTestSession();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int FeedFingeringTestAudio(short[] samples, uint frames);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int PollFingeringTestRawOnset(out FingeringTestRawOnset outOnset);
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void StopSession();
 
@@ -332,6 +389,12 @@ public static class PakNativePlugin
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int GetAudioStats(out AudioStats outStats);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetJudgmentDiagnostics(out JudgmentDiagnostics outDiagnostics);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int GetJudgeProcessingStats(out JudgeProcessingStats outStats);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int GetSongSyncInfo(out SongSyncInfo outInfo);
@@ -370,7 +433,9 @@ public static class PakNativePlugin
 
 CG-FPM은 채보 운지의 각 MIDI 기본음 대역에 에너지가 있는지 확인하는 방식입니다. 코드 전체를 후보 중에서 분류하지 않으며, 한 음의 배음이 다른 목표음의 근거가 되지 않도록 기본음 대역만 사용합니다.
 
-1. 코드 onset 뒤 160 ms 동안 모노 입력 샘플을 수집합니다.
+1. 코드 onset 기준 160 ms 모노 입력 window를 수집합니다. 운지 판정에서는 raw onset마다
+   독립 pending judgment와 PCM window를 만들므로, 기존 chord judgment가 수집 중이어도
+   후속 onset이 버려지지 않습니다.
 2. Hann window와 16,384-point FFT를 적용합니다.
 3. 채보 운지 MIDI 각각의 기본음 주파수 주변 5개 FFT bin 에너지를 계산합니다.
 4. 각 목표 기본음 주변에서 최강 스펙트럼 피크가 해당 목표 기본음 FFT bin에 있는지 확인합니다.
@@ -411,6 +476,10 @@ CG-HCM은 채보가 요구하는 코드가 입력 스펙트럼에 포함됐는�
 | `noteName`          | `char[16]` | `single`: 목표 음 이름. 예: `E2`, `F#3` / `chord`: 코드 기호. 예: `C`, `Am7` |
 
 `chord` 이벤트에 대해 `detectedMidi`와 `targetMidi`를 비교하면 안 됩니다. 두 필드는 0이므로, 예를 들어 `MIDI 48/0`은 코드의 목표 MIDI가 0이라는 뜻이지 입력이 없었다는 뜻은 아닙니다.
+
+chord window는 detector가 반환한 onset 시각을 기준으로 잡는다. 따라서 `judgedAudioTimeMs`는
+HFC peak-picking 결과이며, 사용자가 느끼는 스트로크 시작 시각과 정확히 같다고 가정하면 안 된다.
+window anchoring 변경은 chord 판정 의미를 바꾸므로 별도 검증이 필요하다.
 
 ## GuitarInputEvent
 
@@ -457,7 +526,7 @@ const char *GetPluginVersion(void);
 로드된 네이티브 플러그인의 버전 문자열을 반환합니다.
 초기화 전후와 관계없이 호출할 수 있습니다.
 
-현재 반환값은 `"0.4.11"`입니다.
+현재 반환값은 `"0.5.0"`입니다.
 
 ### Initialize
 
@@ -630,6 +699,48 @@ int StartFingeringPracticeSession(void);
 `Perfect` 이벤트를 발생시키고 다음 노트로 이동합니다. 틀린 입력은 `Miss` 이벤트를 발생시키며
 현재 노트에 남습니다. 채보의 시간 오차는 판정에 사용하지 않습니다.
 
+### InitializeFingeringTest
+
+```c
+int InitializeFingeringTest(
+    unsigned int channels,
+    unsigned int sampleRate,
+    const char *onsetMethod,
+    float onsetThreshold);
+```
+
+장치를 열지 않는 녹음 기반 운지 테스트 경로를 초기화합니다. `onsetMethod`는 aubio onset
+descriptor 이름이며, `onsetThreshold`는 해당 detector의 threshold입니다. 현재 기준 테스트
+설정은 adaptive whitening OFF입니다.
+
+반환값:
+
+- `0`: 성공
+- `-1`: 초기화 실패
+
+### StartFingeringTestSession
+
+```c
+int StartFingeringTestSession(void);
+```
+
+녹음 PCM을 받을 운지 판정 judge thread를 시작합니다. `InitializeFingeringTest`와 `LoadChart`
+뒤에 호출합니다.
+
+### FeedFingeringTestAudio
+
+```c
+int FeedFingeringTestAudio(const int16_t *samples, unsigned int frames);
+```
+
+녹음 PCM block 하나를 정상 운지 판정 audio queue에 넣습니다. `frames`는 내부 buffer 크기와 같은
+128이어야 합니다.
+
+반환값:
+
+- `0`: queue에 입력 성공
+- `-1`: 테스트 세션이 아니거나 frame 수가 다름, 또는 queue가 가득 참
+
 ### StopSession
 
 ```c
@@ -697,6 +808,26 @@ void SetGuitarInputIntervalMs(double intervalMs);
 기타 입력 이벤트 사이의 최소 간격을 설정합니다. 기본값은 `150.0`ms이며, 이 시간 안에
 발생한 후속 입력은 Unity로 전달하지 않습니다. `0.0`을 설정하면 제한하지 않습니다.
 
+### PollFingeringTestRawOnset
+
+```c
+int PollFingeringTestRawOnset(FingeringTestRawOnset *outOnset);
+```
+
+녹음 기반 운지 테스트에서 검출된 raw onset 하나를 가져옵니다. `startedJudgment`는 해당 raw
+onset으로 judgment를 시작했으면 `1`, 시작하지 못했으면 `0`입니다. overlap 구조에서는 chart에
+남은 타깃이 있는 raw onset마다 `1`이 됩니다.
+
+반환값:
+
+- `1`: onset 있음
+- `0`: 대기 중 onset 없음
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `audioTimeMs` | `double` | aubio가 보고한 plugin audio stream 기준 onset 시각 |
+| `startedJudgment` | `int` | judgment 생성 여부. 0 또는 1 |
+
 ### PollJudgeEvent
 
 ```c
@@ -759,6 +890,47 @@ int GetAudioStats(AudioStats *outStats);
 
 - `0`: 성공
 - `-1`: 초기화되지 않음
+
+### GetJudgmentDiagnostics
+
+```c
+int GetJudgmentDiagnostics(JudgmentDiagnostics *outDiagnostics);
+```
+
+운지 연습의 onset 전달과 chord 판정 수를 가져옵니다. raw onset detector 문제와 judgment
+구조 또는 chord 판정 문제를 분리하는 진단용 API입니다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `detectedOnsets` | `uint` | raw onset 검출 수 |
+| `startedFingeringJudgments` | `uint` | raw onset에서 시작한 운지 judgment 수 |
+| `passedChordJudgments` | `uint` | G5 fundamental 판정을 통과한 chord judgment 수 |
+| `failedChordJudgments` | `uint` | G5 fundamental 판정에 실패한 chord judgment 수 |
+
+반환값:
+
+- `0`: 성공
+- `-1`: 초기화되지 않음
+
+### GetJudgeProcessingStats
+
+```c
+int GetJudgeProcessingStats(JudgeProcessingStats *outStats);
+```
+
+장치 callback-to-judge audio queue의 처리 수를 가져옵니다. 실시간 입력에서 queue drop을
+점검할 때 사용합니다.
+
+| 필드 | 타입 | 의미 |
+| --- | --- | --- |
+| `queuedAudioBlocks` | `uint` | queue에 넣은 audio block 수 |
+| `processedAudioBlocks` | `uint` | judge thread가 처리한 audio block 수 |
+| `droppedAudioBlocks` | `uint` | queue가 가득 차 버린 audio block 수 |
+
+반환값:
+
+- `0`: 성공
+- `-1`: 장치 기반 오디오 세션이 초기화되지 않음
 
 ### GetSongSyncInfo
 

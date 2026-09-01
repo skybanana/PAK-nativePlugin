@@ -15,11 +15,19 @@ void processMonitorDsp(PluginState *state,
                        double sessionStreamTime,
                        double chartTimeMs,
                        double chartTimeScale) {
-    // Mixes the chart song or practice metronome with callback input, then applies monitor DSP.
+    // Applies NAM to guitar input, then mixes chart audio and applies monitor DSP.
+    for (unsigned int frame = 0; frame < nBufferFrames; frame++)
+        state->namInput[frame] =
+            (NAM_SAMPLE)input[frame * state->channels] / 32768.0 * state->inputGain.load();
+
+    NAM_SAMPLE *namInputChannels[] = {state->namInput.data()};
+    NAM_SAMPLE *namOutputChannels[] = {state->namOutput.data()};
+    state->namModel->process(namInputChannels, namOutputChannels, (int)nBufferFrames);
+
     for (unsigned int frame = 0; frame < nBufferFrames; frame++) {
         for (unsigned int channel = 0; channel < state->channels; channel++) {
             unsigned int index = frame * state->channels + channel;
-            float sample = (float)input[index] / 32768.0f;
+            float sample = (float)state->namOutput[frame];
 
             double songTimeSeconds = sessionStreamTime + (double)frame / state->sampleRate
                                      - COUNTDOWN_SECONDS;
@@ -56,8 +64,6 @@ void processMonitorDsp(PluginState *state,
                 }
             }
 
-            sample *= state->inputGain.load();
-            sample = std::tanh(sample);
             sample = lpf(sample, state->lpfState[channel], state->lpfAlpha.load());
             state->lpfState[channel] = sample;
             sample *= state->outputGain.load();

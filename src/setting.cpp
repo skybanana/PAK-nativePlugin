@@ -1,6 +1,8 @@
 #include "setting.h"
 
+#include <cstdio>
 #include <cstring>
+#include <exception>
 #include <vector>
 
 #ifdef _WIN32
@@ -64,6 +66,21 @@ static int initializeAudioDriver(RtAudio::Api api,
     g_state.outputGain.store(0.5f);
     g_state.songVolume.store(1.0f);
     g_state.lpfAlpha.store(0.2f);
+    // Loads the bundled NAM amp model before the audio callback starts.
+    try {
+        g_state.namModel = nam::get_dsp(
+            std::filesystem::path("assets/NAM/VX TB30 BR Edge0 BAL2 CAB FREE.nam"));
+    } catch (const std::exception &error) {
+        std::fprintf(stderr, "Failed to load NAM model: %s\n", error.what());
+        Shutdown();
+        return -1;
+    } catch (...) {
+        std::fprintf(stderr, "Failed to load NAM model.\n");
+        Shutdown();
+        return -1;
+    }
+    g_state.namInput.assign(g_state.bufferFrames, 0.0);
+    g_state.namOutput.assign(g_state.bufferFrames, 0.0);
     g_state.audioTestMode = false;
     g_state.stopRequested.store(true);
     g_state.requestedSessionMode.store(SessionMode_GuitarInput);
@@ -205,6 +222,9 @@ extern "C" PLUGIN_API int InitializeFingeringTest(unsigned int channels,
     g_state.outputGain.store(0.5f);
     g_state.songVolume.store(1.0f);
     g_state.lpfAlpha.store(0.2f);
+    g_state.namModel.reset();
+    g_state.namInput.clear();
+    g_state.namOutput.clear();
     g_state.audioTestMode = false;
     g_state.stopRequested.store(true);
     g_state.requestedSessionMode.store(SessionMode_GuitarInput);
